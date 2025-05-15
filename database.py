@@ -36,32 +36,32 @@ class Database:
         return post
     
     def extract_links(self, text: str):
-    """Improved link extraction with better quality detection"""
-    if not text:
-        return []
-        
-    links = []
-    url_pattern = re.compile(
-        r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w .@?^=%&:/~+#-]*'
-    )
-    
-    for url in url_pattern.findall(text):
-        # Clean URL by removing any trailing punctuation
-        clean_url = url.rstrip('.,;!?')
-        
-        # Skip common non-download URLs
-        if any(skip in clean_url.lower() for skip in ['t.me', 'telegram.me', 'twitter.com']):
-            continue
+        """Improved link extraction with better quality detection"""
+        if not text:
+            return []
             
-        quality = self.detect_quality(clean_url)
-        label = f"Download {quality}" if quality else "Open Link"
+        links = []
+        url_pattern = re.compile(
+            r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w .@?^=%&:/~+#-]*'
+        )
         
-        links.append({
-            "url": clean_url,
-            "quality": quality or "unknown",
-            "label": label
-        })
-    return links
+        for url in url_pattern.findall(text):
+            # Clean URL by removing any trailing punctuation
+            clean_url = url.rstrip('.,;!?')
+            
+            # Skip common non-download URLs
+            if any(skip in clean_url.lower() for skip in ['t.me', 'telegram.me', 'twitter.com']):
+                continue
+                
+            quality = self.detect_quality(clean_url)  # Fixed typo
+            label = f"Download {quality}" if quality else "Open Link"
+            
+            links.append({
+                "url": clean_url,
+                "quality": quality or "unknown",
+                "label": label
+            })
+        return links
     
     async def search_posts(self, query: str, limit: int = 10):
         """Search only within our source channel posts"""
