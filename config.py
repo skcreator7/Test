@@ -7,7 +7,7 @@ class Config:
     API_HASH = os.getenv("API_HASH")
     SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID", 0))
     
-    # Web Server
+    # Web
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", 8000))
     BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
