@@ -1,45 +1,34 @@
 from aiohttp import web
 import aiohttp_jinja2
-from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
-import os
-import jinja2
 
-# MongoDB setup
-MONGO_URI = os.getenv("MONGO_URI", "your_mongodb_uri")
-client = AsyncIOMotorClient(MONGO_URI)
-db = client["your_db_name"]
+@aiohttp_jinja2.template('home.html')
+async def handle_index(request):
+    return {}
 
-# Aiohttp app and Jinja2 setup
-app = web.Application()
-aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader("templates"))
+@aiohttp_jinja2.template('home.html')
+async def handle_search(request):
+    db = request.app['db']
+    query = request.rel_url.query.get('q', '')
+    if not query:
+        return {'results': [], 'query': ''}
 
-routes = web.RouteTableDef()
+    cursor = db.posts.find({'$text': {'$search': query}})
+    results = await cursor.to_list(length=50)
+    return {'results': results, 'query': query}
 
-@routes.get("/")
-async def handle_home(request):
-    return web.Response(text="Working!")
-
-@routes.get("/watch/{post_id}/{title}")
+@aiohttp_jinja2.template('watch.html')
 async def handle_watch(request):
+    db = request.app['db']
     post_id = request.match_info['post_id']
+    title = request.match_info['title']
 
     post = await db.posts.find_one({'_id': ObjectId(post_id)})
     if not post:
-        raise web.HTTPNotFound(text="Post not found")
+        return web.Response(text="Post not found", status=404)
 
-    links = post.get("links", [])
+    links = post.get('links', [])
+    return {'post': post, 'links': links, 'title': title}
 
-    return aiohttp_jinja2.render_template(
-        "watch.html",
-        request,
-        {
-            "post": post,
-            "links": links
-        }
-    )
-
-app.add_routes(routes)
-
-if __name__ == "__main__":
-    web.run_app(app, host="0.0.0.0", port=8000)
+async def health_check(request):
+    return web.Response(text="OK")
