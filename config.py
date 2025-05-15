@@ -7,7 +7,7 @@ class Config:
     API_ID = int(os.getenv("API_ID", 0))
     API_HASH = os.getenv("API_HASH")
     SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID", 0))
-    ADMINS = [int(admin) for admin in os.getenv("ADMINS", "").split(",") if admin]
+    ADMINS = [int(admin) for admin in os.getenv("ADMINS", "5928972764").split(",") if admin]
     
     # Web
     HOST = os.getenv("HOST", "0.0.0.0")
