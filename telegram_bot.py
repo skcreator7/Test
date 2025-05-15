@@ -1,10 +1,10 @@
-from pyrogram import Client, filters, types
+from pyrogram import Client, filters
+from pyrogram.types import Message
 from config import Config
-from utils import extract_links, slugify_title
-
+from database import Database
 
 class TelegramBot:
-    def __init__(self, db):
+    def __init__(self, db: Database):
         self.db = db
         self.app = Client(
             "my_telegram_bot",
@@ -23,31 +23,36 @@ class TelegramBot:
 
     def setup_handlers(self):
         @self.app.on_message(filters.command("start") & filters.private)
-        async def start_command(client, message: types.Message):
-            await message.reply("🔍 Send any search term to find streaming links.")
+        async def start_command(client, message: Message):
+            await message.reply("🔍 Send any text to search posts.")
 
-        @self.app.on_message(filters.text & filters.private)
-        async def handle_search(client, message: types.Message):
-            query = message.text.strip()
-            if not query:
-                await message.reply("❌ Please send a search keyword.")
+        @self.app.on_message(filters.text & (filters.private | filters.group | filters.channel))
+        async def handle_search(client, message: Message):
+            if message.text.startswith("/"):
                 return
 
+            query = message.text
             results = await self.db.search_posts(query)
+
             if not results:
-                await message.reply("❌ No results found.")
+                await message.reply("No matching posts found.")
                 return
 
-            response = "🎬 *Search Results:*\n\n"
-            for post in results[:10]:
-                title = post.get("title", "Untitled")
-                slug = slugify_title(title)
-                response += f"• [{title}](https://{Config.BASE_DOMAIN}/watch/{post['_id']}/{slug})\n"
+            buttons = []
+            from utils import make_watch_url
+            for result in results:
+                url = make_watch_url(result)
+                buttons.append([{"text": result.get("channel_name", "Watch"), "url": url}])
 
-            await message.reply(response, disable_web_page_preview=True)
+            await message.reply(
+                "Search results:",
+                reply_markup={"inline_keyboard": buttons}
+            )
 
         @self.app.on_message(filters.channel)
-        async def save_channel_post(client, message: types.Message):
-            links = extract_links(message.text or "")
-            if links:
-                await self.db.save_post(message)
+        async def save_channel_post(client, message: Message):
+            await self.db.save_post(message)
+
+        @self.app.on_message(filters.group)
+        async def save_group_post(client, message: Message):
+            await self.db.save_post(message)
