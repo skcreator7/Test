@@ -1,7 +1,8 @@
-aiohttp
-aiohttp-jinja2
-motor   # pymongo 4.x के साथ काम करता है
-pymongo # motor 4.x के लिए कंपैटिबल
+aiohttp==3.9.3
+aiohttp-jinja2==1.5.1
+motor==3.3.2
+pymongo==3.13.0
 python-telegram-bot==20.8
 Pyrogram==2.0.106
-jinja2
+jinja2==3.1.2
+TgCrypto==1.2.6
