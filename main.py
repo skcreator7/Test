@@ -6,24 +6,25 @@ import jinja2
 from database import Database
 from telegram_bot import TelegramBot
 from config import Config
+from web_routes import handle_index, handle_search, handle_watch, health_check
 
 async def start_app():
-    # Config Validation
+    # Validate configuration
     Config.validate()
     
-    # Database Setup
+    # Initialize Database
     db = Database()
     await db.init_db()
     
-    # Start Telegram Bot in Background
+    # Start Telegram Bot
     bot = TelegramBot(db)
-    asyncio.create_task(bot.start())
+    await bot.start()  # Start the bot
     
-    # Web Application
+    # Setup Web Application
     app = web.Application()
     aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader("templates"))
     
-    # Routes
+    # Add Routes
     app.add_routes([
         web.get('/', handle_index),
         web.get('/search', handle_search),
@@ -31,6 +32,7 @@ async def start_app():
         web.get('/health', health_check),
     ])
     
+    # Attach DB to app
     app['db'] = db
     return app
 
