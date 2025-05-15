@@ -15,14 +15,13 @@ class Database:
         await self.posts.create_index([("text", "text")])
     
     async def save_post(self, message):
-        """Save post from our source channel only"""
+        """Save post from source channel"""
         if message.chat.id != Config.SOURCE_CHANNEL_ID:
             return None
             
         post = {
             "message_id": message.id,
             "chat_id": Config.SOURCE_CHANNEL_ID,
-            "chat_title": message.chat.title,
             "text": message.text,
             "date": message.date,
             "links": self.extract_links(message.text),
@@ -36,7 +35,7 @@ class Database:
         return post
     
     def extract_links(self, text: str):
-        """Improved link extraction with better quality detection"""
+        """Improved link extraction with quality detection"""
         if not text:
             return []
             
@@ -45,15 +44,13 @@ class Database:
             r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w .@?^=%&:/~+#-]*'
         )
         
-        for url in url_pattern.findall(text):
-            # Clean URL by removing any trailing punctuation
+        for url in re.findall(url_pattern, text):
             clean_url = url.rstrip('.,;!?')
             
-            # Skip common non-download URLs
-            if any(skip in clean_url.lower() for skip in ['t.me', 'telegram.me', 'twitter.com']):
+            if any(skip in clean_url.lower() for skip in ['t.me', 'telegram.me']):
                 continue
                 
-            quality = self.detect_quality(clean_url)  # Fixed typo
+            quality = self.detect_quality(clean_url)
             label = f"Download {quality}" if quality else "Open Link"
             
             links.append({
@@ -63,8 +60,17 @@ class Database:
             })
         return links
     
+    def detect_quality(self, text: str):
+        """Detect video quality from text"""
+        match = re.search(
+            r'(\d{3,4}p)\s*(HEVC|HDRip)?', 
+            text, 
+            re.IGNORECASE
+        )
+        return match.group(1).lower() if match else None
+    
     async def search_posts(self, query: str, limit: int = 10):
-        """Search only within our source channel posts"""
+        """Search posts with text index"""
         return await self.posts.find(
             {"$text": {"$search": query}},
             {"score": {"$meta": "textScore"}}
