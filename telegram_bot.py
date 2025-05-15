@@ -32,7 +32,10 @@ class TelegramBot:
 
     def setup_handlers(self):
         # Save posts from source channel
-        @self.app.on_message(filters.channel & filters.chat(Config.SOURCE_CHANNEL_ID))
+        @self.app.on_message(
+            filters.channel & 
+            filters.chat(Config.SOURCE_CHANNEL_ID)
+        )
         async def save_channel_post(_, message: Message):
             post_data = {
                 "channel_id": message.chat.id,
@@ -42,8 +45,11 @@ class TelegramBot:
             }
             await self.db.save_post(post_data)
 
-        # Handle search queries
-        @self.app.on_message(filters.text & ~filters.command)
+        # Fixed search handler - proper non-command text filter
+        @self.app.on_message(
+            filters.text &
+            filters.create(lambda _, __, m: not m.text.startswith('/'))
+        )
         async def handle_search(_, message: Message):
             query = message.text.strip()
             results = await self.db.search_posts(query)
