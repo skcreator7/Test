@@ -23,13 +23,13 @@ class TelegramBot:
         await self.app.stop()
 
     async def auto_delete(self, message: Message, delay: int):
-    """Safe auto-delete with client check"""
-    await asyncio.sleep(delay)
-    try:
-        if await self.app.is_connected():
-            await message.delete()
-    except Exception as e:
-        print(f"⚠️ Couldn't delete message: {e}")
+        """Safe auto-delete with client check"""
+        await asyncio.sleep(delay)
+        try:
+            if await self.app.is_connected():
+                await message.delete()
+        except Exception as e:
+            print(f"⚠️ Couldn't delete message: {e}")
 
     def setup_handlers(self):
         # Save posts from source channel
@@ -46,7 +46,7 @@ class TelegramBot:
             }
             await self.db.save_post(post_data)
 
-        # Fixed search handler - proper non-command text filter
+        # Handle search queries
         @self.app.on_message(
             filters.text &
             filters.create(lambda _, __, m: not m.text.startswith('/'))
