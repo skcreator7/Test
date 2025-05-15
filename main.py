@@ -9,10 +9,9 @@ async def start_app():
     Config.validate()
     print("✅ Config validated")
 
-    # Initialize DB
+    # In your start_app() function:
     db = Database()
-    await db.init_db()
-
+    await db.connect()  # Instead of direct initialization
     # Start bot
     bot = TelegramBot(db)
     asyncio.create_task(bot.start())
