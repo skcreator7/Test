@@ -1,5 +1,8 @@
 import asyncio
 from aiohttp import web
+import aiohttp_jinja2
+import jinja2
+
 from bot import TelegramBot
 from database import Database
 from web import (
@@ -16,6 +19,8 @@ async def start_app():
     await bot.app.start()
     
     app = web.Application()
+    aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader("templates"))
+    
     app.add_routes([
         web.get('/', handle_index),
         web.get('/search', handle_search),
@@ -30,5 +35,4 @@ async def start_app():
 
 if __name__ == "__main__":
     print(f"Starting on {Config.HOST}:{Config.PORT}")
-    print(f"Monitoring channel: {Config.SOURCE_CHANNEL_ID}")
     web.run_app(start_app(), host=Config.HOST, port=Config.PORT)
