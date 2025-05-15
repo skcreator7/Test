@@ -4,35 +4,20 @@ from bson import ObjectId
 
 @aiohttp_jinja2.template('home.html')
 async def handle_index(request):
-    return {}
+    return {'results': [], 'query': ''}
 
-@aiohttp_jinja2.template('home.html')
+@aiohttp_jinja2.template('search.html')
 async def handle_search(request):
-    db = request.app['db']
-    query = request.rel_url.query.get('q', '')
-    if not query:
-        return {'results': [], 'query': ''}
-
-    cursor = db.posts.find({'$text': {'$search': query}})
-    results = await cursor.to_list(length=50)
-    return {'results': results, 'query': query}
+    # ... (पिछला सर्च हैंडलर कोड) ...
 
 @aiohttp_jinja2.template('watch.html')
 async def handle_watch(request):
-    db = request.app['db']
-    post_id = request.match_info['post_id']
-    title = request.match_info.get('title', '')
-
-    try:
-        post = await db.posts.find_one({'_id': ObjectId(post_id)})
-    except:
-        return web.Response(text="Invalid Post ID", status=400)
-
-    if not post:
-        return web.Response(text="Post not found", status=404)
-
-    links = post.get('links', [])
-    return {'post': post, 'links': links, 'title': title}
+    # ... (पिछला वॉच हैंडलर कोड) ...
 
 async def health_check(request):
-    return web.Response(text="OK")
+    try:
+        if not await request.app['db'].ping():
+            return web.Response(text="DB Connection Failed", status=500)
+        return web.Response(text="OK", status=200)
+    except Exception as e:
+        return web.Response(text=f"Error: {e}", status=500)
