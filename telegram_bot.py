@@ -23,7 +23,7 @@ class TelegramBot:
         await self.app.stop()
 
     async def auto_delete(self, message: Message, delay: int):
-        """Auto-delete helper"""
+        """Auto-delete message after delay"""
         await asyncio.sleep(delay)
         try:
             await message.delete()
@@ -31,26 +31,19 @@ class TelegramBot:
             print(f"⚠️ Couldn't delete message: {e}")
 
     def setup_handlers(self):
-        # Save only from configured channel
-        @self.app.on_message(
-            filters.channel & 
-            filters.chat(Config.SOURCE_CHANNEL_ID)
-        )
+        # Save posts from source channel
+        @self.app.on_message(filters.channel & filters.chat(Config.SOURCE_CHANNEL_ID))
         async def save_channel_post(_, message: Message):
             post_data = {
-                'channel_id': message.chat.id,
-                'message_id': message.id,
-                'text': message.text or message.caption,
-                'date': message.date,
-                'source': 'SOURCE_CHANNEL'
+                "channel_id": message.chat.id,
+                "message_id": message.id,
+                "text": message.text or message.caption,
+                "date": message.date
             }
             await self.db.save_post(post_data)
 
-        # Corrected search handler
-        @self.app.on_message(
-            filters.text & 
-            filters.create(lambda _, __, m: not m.text.startswith('/'))
-        )
+        # Handle search queries
+        @self.app.on_message(filters.text & ~filters.command)
         async def handle_search(_, message: Message):
             query = message.text.strip()
             results = await self.db.search_posts(query)
@@ -62,7 +55,7 @@ class TelegramBot:
                 
             buttons = [
                 [InlineKeyboardButton(
-                    f"📌 {res.get('title', 'Post')}",
+                    f"📌 Post from {message.chat.title}",
                     url=f"{Config.BASE_URL}/watch/{res['_id']}"
                 )]
                 for res in results[:5]
@@ -74,18 +67,9 @@ class TelegramBot:
             )
             asyncio.create_task(self.auto_delete(reply, 60))
 
-        # Commands
-        @self.app.on_message(filters.command("start"))
-        async def start_command(_, message: Message):
-            reply = await message.reply("Send text to search posts")
-            asyncio.create_task(self.auto_delete(reply, 30))
-
         # Admin commands
         if Config.ADMINS:
-            @self.app.on_message(
-                filters.command("stats") & 
-                filters.user(Config.ADMINS)
-            )
+            @self.app.on_message(filters.command("stats") & filters.user(Config.ADMINS))
             async def stats_command(_, message: Message):
                 count = await self.db.get_post_count()
-                await message.reply(f"📊 Posts in DB: {count}")
+                await message.reply(f"📊 Total posts: {count}")
