@@ -14,23 +14,23 @@ from config import Config
 async def start_app():
     db = Database()
     await db.init_db()
-    
+
     bot = TelegramBot(db)
     await bot.app.start()
-    
+
     app = web.Application()
     aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader("templates"))
-    
+
     app.add_routes([
         web.get('/', handle_index),
         web.get('/search', handle_search),
-        web.get('/watch/{post_id}', handle_watch),
+        web.get('/watch/{post_id}/{title}', handle_watch),
         web.get('/health', health_check),
     ])
-    
+
     app['db'] = db
     app['bot'] = bot
-    
+
     return app
 
 if __name__ == "__main__":
