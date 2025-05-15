@@ -5,27 +5,39 @@ from config import Config
 from database import Database
 
 async def start_app():
-    Config.validate()
+    # Validate configuration
+    try:
+        Config.validate()
+    except ValueError as e:
+        print(f"❌ Configuration error: {e}")
+        raise
     
-    # Initialize DB with retry logic
+    # Initialize database
     db = Database()
-    await db.init_db()
+    try:
+        await db.ping()
+        print("✅ Database connection successful")
+    except Exception as e:
+        print(f"❌ Database connection failed: {e}")
+        raise
     
-    # Start bot
+    # Start Telegram bot
     bot = TelegramBot(db)
-    asyncio.create_task(bot.start())  # Run in background
+    asyncio.create_task(bot.start())
     
-    # Setup web app
+    # Setup web application
     app = web.Application()
-    app["db"] = db
+    app['db'] = db
     
-    # Clean shutdown
+    # Clean shutdown handler
     async def on_shutdown(app):
         await bot.stop()
         await db.client.close()
+        print("🛑 Application shutdown complete")
     
     app.on_shutdown.append(on_shutdown)
     return app
 
 if __name__ == "__main__":
+    print("🚀 Starting application...")
     web.run_app(start_app(), host=Config.HOST, port=Config.PORT)
