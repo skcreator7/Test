@@ -1,40 +1,40 @@
 import asyncio
 from aiohttp import web
-from telegram_bot import TelegramBot
 from config import Config
 from database import Database
+from telegram_bot import TelegramBot
 
 async def start_app():
-    # Validate configuration
+    # Validate config
     try:
         Config.validate()
+        print("✅ Config validation passed")
     except ValueError as e:
-        print(f"❌ Configuration error: {e}")
+        print(f"❌ Config error: {e}")
         raise
-    
-    # Initialize database
+
+    # Initialize DB
     db = Database()
     try:
-        await db.ping()
-        print("✅ Database connection successful")
+        await db.init_db()
     except Exception as e:
-        print(f"❌ Database connection failed: {e}")
+        print(f"❌ DB init failed: {e}")
         raise
-    
-    # Start Telegram bot
+
+    # Start bot
     bot = TelegramBot(db)
     asyncio.create_task(bot.start())
-    
-    # Setup web application
+
+    # Setup web app
     app = web.Application()
     app['db'] = db
-    
-    # Clean shutdown handler
+
+    # Clean shutdown
     async def on_shutdown(app):
         await bot.stop()
-        await db.client.close()
-        print("🛑 Application shutdown complete")
-    
+        await db.close()
+        print("🛑 Clean shutdown complete")
+
     app.on_shutdown.append(on_shutdown)
     return app
 
