@@ -17,13 +17,13 @@ class TelegramBot:
 
     async def start(self):
         await self.app.start()
-        print(f"🤖 Bot started! Monitoring channel: {Config.SOURCE_CHANNEL_ID}")
+        print(f"🤖 Bot started monitoring channel: {Config.SOURCE_CHANNEL_ID}")
 
     async def stop(self):
         await self.app.stop()
 
     async def auto_delete(self, message: Message, delay: int):
-        """Auto-delete that skips source channel"""
+        """Auto-deletes message after delay, skips source channel"""
         if message.chat.id == Config.SOURCE_CHANNEL_ID:
             return
             
@@ -31,18 +31,18 @@ class TelegramBot:
         try:
             await message.delete()
         except Exception as e:
-            print(f"⚠️ Delete failed: {e}")
+            print(f"⚠️ Couldn't delete message: {e}")
 
     def setup_handlers(self):
         # Save only from source channel (no auto-delete)
         @self.app.on_message(filters.channel & filters.chat(Config.SOURCE_CHANNEL_ID))
         async def save_channel_post(_, message: Message):
             post_data = {
-                "channel_id": message.chat.id,
-                "message_id": message.id,
-                "text": message.text or message.caption,
-                "date": message.date,
-                "title": getattr(message, "title", "")
+                'channel_id': message.chat.id,
+                'message_id': message.id,
+                'text': message.text or message.caption,
+                'date': message.date,
+                'source': 'SOURCE_CHANNEL'
             }
             await self.db.save_post(post_data)
             print(f"💾 Saved post #{message.id}")
@@ -54,8 +54,8 @@ class TelegramBot:
             results = await self.db.search_posts(query)
             
             if not results:
-                reply = await message.reply("🔍 No results in source channel")
-                asyncio.create_task(self.auto_delete(reply, Config.AUTO_DELETE["not_found"]))
+                reply = await message.reply("🔍 No matching posts found")
+                asyncio.create_task(self.auto_delete(reply, Config.AUTO_DELETE['not_found']))
                 return
                 
             buttons = [
@@ -63,24 +63,24 @@ class TelegramBot:
                     f"📌 {res.get('title', 'Post')}",
                     url=f"{Config.BASE_URL}/watch/{res['_id']}"
                 )]
-                for res in results
+                for res in results[:5]
             ]
             
             reply = await message.reply(
                 f"🔎 Found {len(results)} posts:",
                 reply_markup=InlineKeyboardMarkup(buttons)
             )
-            asyncio.create_task(self.auto_delete(reply, Config.AUTO_DELETE["search_results"]))
+            asyncio.create_task(self.auto_delete(reply, Config.AUTO_DELETE['search_results']))
 
-        # Commands
+        # Start command (auto-deletes)
         @self.app.on_message(filters.command("start"))
-        async def start_cmd(_, message: Message):
-            reply = await message.reply("Send text to search source channel")
-            asyncio.create_task(self.auto_delete(reply, Config.AUTO_DELETE["help_messages"]))
+        async def start_command(_, message: Message):
+            reply = await message.reply("Send text to search posts")
+            asyncio.create_task(self.auto_delete(reply, Config.AUTO_DELETE['help_messages']))
 
         # Admin commands (no auto-delete)
-        if Config.ADMINS:
+        if hasattr(Config, 'ADMINS') and Config.ADMINS:
             @self.app.on_message(filters.command("stats") & filters.user(Config.ADMINS))
-            async def stats_cmd(_, message: Message):
+            async def stats_command(_, message: Message):
                 count = await self.db.get_post_count()
                 await message.reply(f"📊 Posts in DB: {count}")
