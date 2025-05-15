@@ -1,64 +1,45 @@
 from aiohttp import web
-from datetime import datetime
-from bson import ObjectId
 import aiohttp_jinja2
+from motor.motor_asyncio import AsyncIOMotorClient
+from bson import ObjectId
+import os
+import jinja2
 
+# MongoDB setup
+MONGO_URI = os.getenv("MONGO_URI", "your_mongodb_uri")
+client = AsyncIOMotorClient(MONGO_URI)
+db = client["your_db_name"]
+
+# Aiohttp app and Jinja2 setup
+app = web.Application()
+aiohttp_jinja2.setup(app, loader=jinja2.FileSystemLoader("templates"))
+
+routes = web.RouteTableDef()
+
+@routes.get("/")
+async def handle_home(request):
+    return web.Response(text="Working!")
+
+@routes.get("/watch/{post_id}/{title}")
 async def handle_watch(request):
-    """Render single post with smart link labeling."""
-    db = request.app['db']
-    post_id = request.match_info.get('post_id')
+    post_id = request.match_info['post_id']
 
-    if not ObjectId.is_valid(post_id):
-        raise web.HTTPBadRequest(text="Invalid post ID")
-
-    post = await db.get_post(post_id)
+    post = await db.posts.find_one({'_id': ObjectId(post_id)})
     if not post:
         raise web.HTTPNotFound(text="Post not found")
 
-    await db.posts.update_one(
-        {"_id": ObjectId(post_id)},
-        {"$set": {"last_accessed": datetime.now()}}
-    )
-
-    links = post.get('links', [])
-    processed_links = []
-
-    if len(links) > 5:
-        # Episode labeling
-        for idx, link in enumerate(links, 1):
-            processed_links.append({
-                **link,
-                "label": f"Episode {idx}",
-                "quality_class": "episode"
-            })
-    else:
-        # Quality-based labeling
-        for link in links:
-            quality = str(link.get('quality', 'unknown')).lower()
-            quality_class = f"quality-{quality.replace(' ', '-')}"
-            label = link.get('label') or quality.upper() or "Open Link"
-
-            processed_links.append({
-                **link,
-                "label": label,
-                "quality_class": quality_class
-            })
+    links = post.get("links", [])
 
     return aiohttp_jinja2.render_template(
-        "watch.html", request, {
-            "title": post.get("text", "")[:50] or "Post View",
-            "text": post.get("text", ""),
-            "links": processed_links
+        "watch.html",
+        request,
+        {
+            "post": post,
+            "links": links
         }
     )
 
+app.add_routes(routes)
 
-# Placeholder handlers (optional)
-async def handle_index(request):
-    return web.Response(text="Index")
-
-async def handle_search(request):
-    return web.Response(text="Search")
-
-async def health_check(request):
-    return web.Response(text="OK")
+if __name__ == "__main__":
+    web.run_app(app, host="0.0.0.0", port=8000)
