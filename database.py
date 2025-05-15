@@ -1,44 +1,34 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from bson.objectid import ObjectId
-import re
+from config import Config
+import asyncio
 
 class Database:
-    def __init__(self, uri=None):
-        from config import Config
-        self.client = AsyncIOMotorClient(uri or Config.MONGO_URI)
-        self.db = self.client["telegram_stream_db"]
-        self.posts = self.db["posts"]
-        self.channels = self.db["channels"]
+    def __init__(self):
+        self.client = None
+        self.db = None
 
-    async def init_db(self):
-        await self.posts.create_index([("text", "text")])
-        await self.channels.create_index("chat_id", unique=True)
+    async def init_db(self, max_retries=3, retry_delay=5):
+        for attempt in range(max_retries):
+            try:
+                self.client = AsyncIOMotorClient(Config.MONGO_URI)
+                self.db = self.client[Config.MONGO_DB]
+                await self.ping()  # Test connection
+                print("DB connected!")
+                return
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                print(f"DB connection failed (attempt {attempt+1}), retrying...")
+                await asyncio.sleep(retry_delay)
 
-    async def save_post(self, message):
-        if not message.text:
-            return
+    async def ping(self):
+        await self.db.command("ping")
 
-        links = re.findall(r'(https?://[^\s]+)', message.text)
-        if not links:
-            return
+    async def save_post(self, post_data):
+        await self.db.posts.insert_one(post_data)
 
-        post_data = {
-            "message_id": message.id,
-            "chat_id": message.chat.id,
-            "text": message.text,
-            "links": links,
-            "date": message.date,
-            "channel_name": message.chat.title or message.chat.first_name or "Unknown"
-        }
-        await self.posts.update_one(
-            {"chat_id": message.chat.id, "message_id": message.id},
-            {"$set": post_data},
-            upsert=True
-        )
-
-    async def search_posts(self, query):
-        cursor = self.posts.find({"$text": {"$search": query}}).sort("date", -1).limit(10)
-        return await cursor.to_list(length=10)
-
-    async def get_post_by_id(self, post_id):
-        return await self.posts.find_one({"_id": ObjectId(post_id)})
+    async def search_posts(self, query, limit=10):
+        return await self.db.posts.find(
+            {"$text": {"$search": query}},
+            {"score": {"$meta": "textScore"}}
+        ).sort([("score", {"$meta": "textScore"})]).limit(limit).to_list()
