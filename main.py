@@ -3,8 +3,8 @@ from aiohttp import web
 from bot import TelegramBot
 from database import Database
 from web import (
-    handle_index, handle_search, handle_watch, 
-    handle_admin, handle_warnings, health_check
+    handle_index, handle_search, 
+    handle_watch, health_check
 )
 from config import Config
 
@@ -23,8 +23,6 @@ async def start_app():
         web.get('/', handle_index),
         web.get('/search', handle_search),
         web.get('/watch/{post_id}', handle_watch),
-        web.get('/admin', handle_admin),
-        web.get('/warnings', handle_warnings),
         web.get('/health', health_check),
     ])
     
@@ -35,7 +33,6 @@ async def start_app():
     return app
 
 if __name__ == "__main__":
-    print(f"Starting server on {Config.HOST}:{Config.PORT}")
-    print(f"Base URL: {Config.BASE_URL}")
-    print(f"MongoDB: {Config.MONGO_URI}/{Config.MONGO_DB}")
+    print(f"Starting Private Channel Archive on {Config.HOST}:{Config.PORT}")
+    print(f"Monitoring channel ID: {Config.SOURCE_CHANNEL_ID}")
     web.run_app(start_app(), host=Config.HOST, port=Config.PORT)
