@@ -1,42 +1,32 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config
-from bson import ObjectId
-from datetime import datetime
+import asyncio
 
 class Database:
     def __init__(self):
         self.client = None
         self.db = None
 
-    async def init_db(self):
-        """Initialize with SRV support"""
-        try:
-            self.client = AsyncIOMotorClient(
-                Config.MONGO_URI,
-                connectTimeoutMS=30000,
-                socketTimeoutMS=30000,
-                serverSelectionTimeoutMS=30000
-            )
-            self.db = self.client[Config.MONGO_DB]
-            await self.client.admin.command('ping')
-            print("✅ MongoDB connected successfully")
-        except Exception as e:
-            print(f"❌ MongoDB connection failed: {e}")
-            raise
-
-    async def save_post(self, post_data: dict):
-        post_data.update({
-            'source': 'SOURCE_CHANNEL',
-            'saved_at': datetime.utcnow()
-        })
-        return await self.db.posts.insert_one(post_data)
-
-    async def search_posts(self, query: str, limit: int = 5):
-        cursor = self.db.posts.find({
-            'source': 'SOURCE_CHANNEL',
-            '$text': {'$search': query}
-        }).limit(limit)
-        return await cursor.to_list(length=limit)
+    async def connect(self):
+        """Initialize connection with retries"""
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                self.client = AsyncIOMotorClient(
+                    Config.MONGO_URI,
+                    connectTimeoutMS=30000,
+                    serverSelectionTimeoutMS=30000
+                )
+                self.db = self.client[Config.MONGO_DB]
+                await self.client.admin.command('ping')
+                print("✅ MongoDB connected successfully")
+                return
+            except Exception as e:
+                if attempt == max_retries - 1:
+                    raise
+                wait_time = (attempt + 1) * 2
+                print(f"⚠️ Connection failed (attempt {attempt + 1}), retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
 
     async def close(self):
         if self.client:
