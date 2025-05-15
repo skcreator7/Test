@@ -1,15 +1,15 @@
-# Core Requirements
+# Core Web
 aiohttp==3.9.3
 aiohttp-jinja2==1.5.1
 jinja2==3.1.2
 
-# MongoDB (Compatible Versions)
-motor==3.3.0
-pymongo==4.3.3
+# MongoDB (Compatible Pair)
+motor==3.1.1
+pymongo==4.2.0
 
 # Telegram
 Pyrogram==2.0.106
 TgCrypto==1.2.5
 
-# Optional
+# Utilities
 python-dotenv==1.0.0
