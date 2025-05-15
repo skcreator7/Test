@@ -1,4 +1,4 @@
-aiohttp=
+aiohttp
 aiohttp-jinja2
 motor   # pymongo 4.x के साथ काम करता है
 pymongo # motor 4.x के लिए कंपैटिबल
