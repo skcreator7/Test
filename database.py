@@ -21,10 +21,34 @@ class Database:
             return False
     
     async def save_post(self, message):
-        # ... (पिछला कोड यहाँ ऐड करें) ...
-
+        try:
+            post_data = {
+                "_id": message.id,
+                "chat_id": message.chat.id,
+                "text": message.text,
+                "links": self.extract_links(message.text),
+            }
+            result = await self.posts.replace_one(
+                {"_id": message.id}, 
+                post_data, 
+                upsert=True
+            )
+            return result.upserted_id
+        except Exception as e:
+            print(f"Error saving post: {e}")
+            raise
+    
     async def search_posts(self, query):
-        # ... (पिछला कोड यहाँ ऐड करें) ...
+        try:
+            cursor = self.posts.find({"$text": {"$search": query}})
+            return await cursor.to_list(length=20)
+        except Exception as e:
+            print(f"Search error: {e}")
+            return []
+    
+    def extract_links(self, text):
+        pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w .\-?=%&]*'
+        return re.findall(pattern, text)
     
     async def close(self):
         self.client.close()
