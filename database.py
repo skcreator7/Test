@@ -18,10 +18,10 @@ class Database:
         """Save post from source channel"""
         if message.chat.id != Config.SOURCE_CHANNEL_ID:
             return None
-            
+        
         post = {
             "message_id": message.id,
-            "chat_id": Config.SOURCE_CHANNEL_ID,
+            "chat_id": message.chat.id,
             "text": message.text,
             "date": message.date,
             "links": self.extract_links(message.text),
@@ -35,48 +35,45 @@ class Database:
         return post
     
     def extract_links(self, text: str):
-        """Improved link extraction with quality detection"""
+        """Extracts all valid links and assigns quality labels if possible."""
         if not text:
             return []
-            
+
         links = []
         url_pattern = re.compile(
             r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w .@?^=%&:/~+#-]*'
         )
-        
-        for url in re.findall(url_pattern, text):
-            clean_url = url.rstrip('.,;!?')
-            
-            if any(skip in clean_url.lower() for skip in ['t.me', 'telegram.me']):
+        matches = re.findall(url_pattern, text)
+
+        for url in matches:
+            url = url.strip().rstrip('.,;!?')
+            if "t.me" in url or "telegram.me" in url:
                 continue
-                
-            quality = self.detect_quality(clean_url)
-            label = f"Download {quality}" if quality else "Open Link"
+            
+            quality = self.detect_quality(url)
+            label = quality.upper() if quality else "Open Link"
             
             links.append({
-                "url": clean_url,
+                "url": url,
                 "quality": quality or "unknown",
                 "label": label
             })
         return links
-    
+
     def detect_quality(self, text: str):
-        """Detect video quality from text"""
-        match = re.search(
-            r'(\d{3,4}p)\s*(HEVC|HDRip)?', 
-            text, 
-            re.IGNORECASE
-        )
+        """Detects common video quality labels like 480p, 720p, 1080p, etc."""
+        match = re.search(r'(\d{3,4}p)', text, re.IGNORECASE)
         return match.group(1).lower() if match else None
-    
+
     async def search_posts(self, query: str, limit: int = 10):
-        """Search posts with text index"""
+        """Search posts by text"""
         return await self.posts.find(
             {"$text": {"$search": query}},
             {"score": {"$meta": "textScore"}}
         ).sort([("score", {"$meta": "textScore"})]).limit(limit).to_list(None)
-    
+
     async def get_post(self, post_id: str):
+        """Fetch post by ObjectId"""
         if not ObjectId.is_valid(post_id):
             return None
         return await self.posts.find_one({"_id": ObjectId(post_id)})
