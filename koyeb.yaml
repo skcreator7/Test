@@ -1,0 +1,4 @@
+koyeb app init telegram-bot --dockerfile
+koyeb service deploy telegram-bot \
+  --app telegram-bot \
+  --dockerfile-path koyeb.yaml
