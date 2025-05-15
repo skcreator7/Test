@@ -1,16 +1,6 @@
-# Core Requirements
 aiohttp==3.9.3
 aiohttp-jinja2==1.5.1
-jinja2==3.1.2
-
-# Database
 motor==3.3.2
-pymongo==4.5.0
-
-# Telegram
 Pyrogram==2.0.106
 TgCrypto==1.2.5
-python-telegram-bot==20.8  # Only if you need both libraries
-
-# Optional Utilities
-python-dotenv==1.0.0  # For local .env loading
+python-dotenv==1.0.0
