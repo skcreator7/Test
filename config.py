@@ -22,7 +22,9 @@ class Config:
     
     # Quality patterns for link extraction
     QUALITY_PATTERNS = {
-        "720p": r"720p|HD",
-        "1080p": r"1080p|FHD", 
-        "4K": r"4K|UHD"
-    }
+    "720p": r"\b720p\b|\bHD\b|\b480p\b",
+    "1080p": r"\b1080p\b|\bFHD\b|\bFullHD\b",
+    "4K": r"\b4K\b|\bUHD\b|\b2160p\b",
+    "magnet": r"\bmagnet:\?",
+    "torrent": r"\.torrent\b"
+}
