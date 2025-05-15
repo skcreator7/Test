@@ -21,13 +21,18 @@ async def handle_search(request):
 async def handle_watch(request):
     db = request.app['db']
     post_id = request.match_info['post_id']
+    title = request.match_info.get('title', '')
 
-    post = await db.posts.find_one({'_id': ObjectId(post_id)})
+    try:
+        post = await db.posts.find_one({'_id': ObjectId(post_id)})
+    except:
+        return web.Response(text="Invalid Post ID", status=400)
+
     if not post:
         return web.Response(text="Post not found", status=404)
 
     links = post.get('links', [])
-    return {'post': post, 'links': links, 'title': post.get('title', '')}
+    return {'post': post, 'links': links, 'title': title}
 
 async def health_check(request):
     return web.Response(text="OK")
