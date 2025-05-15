@@ -3,14 +3,13 @@ from aiohttp import web
 from telegram_bot import TelegramBot
 from config import Config
 from database import Database
-from web import setup_routes
 
 async def start_app():
     Config.validate()
     
-    # Initialize DB with retries for Koyeb
+    # Initialize DB with retry logic
     db = Database()
-    await db.init_db(max_retries=3, retry_delay=5)
+    await db.init_db()
     
     # Start bot
     bot = TelegramBot(db)
@@ -19,12 +18,11 @@ async def start_app():
     # Setup web app
     app = web.Application()
     app["db"] = db
-    setup_routes(app)
     
-    # Koyeb needs clean shutdown
+    # Clean shutdown
     async def on_shutdown(app):
         await bot.stop()
-        await db.close()
+        await db.client.close()
     
     app.on_shutdown.append(on_shutdown)
     return app
