@@ -4,7 +4,7 @@ from bot import TelegramBot
 from database import Database
 from web import (
     handle_index, handle_search, 
-    handle_watch, health_check
+    handle_watch, health_check  # Now valid
 )
 from config import Config
 
