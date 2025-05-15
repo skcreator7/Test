@@ -13,7 +13,11 @@ async def handle_search(request):
     if not query:
         return {'results': [], 'query': ''}
 
-    cursor = db.posts.find({'$text': {'$search': query}})
+    cursor = db.posts.find(
+        {'$text': {'$search': query}},
+        {'score': {'$meta': 'textScore'}}
+    ).sort([('score', {'$meta': 'textScore'})])
+
     results = await cursor.to_list(length=50)
     return {'results': results, 'query': query}
 
@@ -21,13 +25,13 @@ async def handle_search(request):
 async def handle_watch(request):
     db = request.app['db']
     post_id = request.match_info['post_id']
-    title = request.match_info['title']
 
     post = await db.posts.find_one({'_id': ObjectId(post_id)})
     if not post:
         return web.Response(text="Post not found", status=404)
 
     links = post.get('links', [])
+    title = post.get('title', 'Watch')
     return {'post': post, 'links': links, 'title': title}
 
 async def health_check(request):
