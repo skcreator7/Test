@@ -5,6 +5,12 @@ from config import Config
 from database import Database
 from web import health_check
 
+async def start_bot(db):
+    """Initialize and start bot separately"""
+    bot = TelegramBot(db)
+    await bot.start()
+    return bot
+
 async def start_app():
     # Validate config
     Config.validate()
@@ -13,9 +19,8 @@ async def start_app():
     db = Database()
     await db.init_db()
     
-    # Start bot
-    bot = TelegramBot(db)
-    asyncio.create_task(bot.start())
+    # Start bot in background
+    bot_task = asyncio.create_task(start_bot(db))
     
     # Setup web app
     app = web.Application()
@@ -24,8 +29,10 @@ async def start_app():
     
     # Clean shutdown
     async def on_shutdown(app):
+        bot = await bot_task
         await bot.stop()
         await db.close()
+        print("🛑 Clean shutdown complete")
     
     app.on_shutdown.append(on_shutdown)
     return app
