@@ -1,4 +1,7 @@
-koyeb app init telegram-bot --dockerfile
-koyeb service deploy telegram-bot \
-  --app telegram-bot \
-  --dockerfile-path koyeb.yaml
+app: telegram-bot
+services:
+  - name: telegram-bot
+    dockerfile: Dockerfile
+    ports:
+      - port: 8000
+        http_path: /health
