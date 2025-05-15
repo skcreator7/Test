@@ -36,26 +36,32 @@ class Database:
         return post
     
     def extract_links(self, text: str):
-        if not text:
-            return []
-            
-        links = []
-        url_pattern = re.compile(r'https?://[^\s]+')
+    """Improved link extraction with better quality detection"""
+    if not text:
+        return []
         
-        for url in url_pattern.findall(text):
-            quality = self.detect_quality(url)
-            links.append({
-                "url": url,
-                "quality": quality,
-                "label": f"Download {quality}" if quality else "Download"
-            })
-        return links
+    links = []
+    url_pattern = re.compile(
+        r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w .@?^=%&:/~+#-]*'
+    )
     
-    def detect_quality(self, text: str):
-        for quality, pattern in Config.QUALITY_PATTERNS.items():
-            if re.search(pattern, text, re.IGNORECASE):
-                return quality
-        return None
+    for url in url_pattern.findall(text):
+        # Clean URL by removing any trailing punctuation
+        clean_url = url.rstrip('.,;!?')
+        
+        # Skip common non-download URLs
+        if any(skip in clean_url.lower() for skip in ['t.me', 'telegram.me', 'twitter.com']):
+            continue
+            
+        quality = self.detect_quality(clean_url)
+        label = f"Download {quality}" if quality else "Open Link"
+        
+        links.append({
+            "url": clean_url,
+            "quality": quality or "unknown",
+            "label": label
+        })
+    return links
     
     async def search_posts(self, query: str, limit: int = 10):
         """Search only within our source channel posts"""
