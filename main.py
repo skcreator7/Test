@@ -24,7 +24,7 @@ async def start_app():
     app.add_routes([
         web.get('/', handle_index),
         web.get('/search', handle_search),
-        web.get('/watch/{post_id}/{title}', handle_watch),
+        web.get('/watch/{post_id}', handle_watch),  # fixed route
         web.get('/health', health_check),
     ])
 
