@@ -1,13 +1,14 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import Config
 from database import Database
+from datetime import datetime
 
 class TelegramBot:
     def __init__(self, db: Database):
         self.db = db
         self.app = Client(
-            "my_telegram_bot",
+            "my_bot",
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN
@@ -16,43 +17,20 @@ class TelegramBot:
 
     async def start(self):
         await self.app.start()
-        print("Telegram Bot Started!")
+        print(f"Bot started at {datetime.now()}")
 
     async def stop(self):
         await self.app.stop()
 
     def setup_handlers(self):
-        @self.app.on_message(filters.command("start") & filters.private)
-        async def start_command(client, message: Message):
-            await message.reply("🔍 Send any text to search posts.")
+        # New: /stats command for admins
+        @self.app.on_message(filters.command("stats") & filters.user(Config.ADMINS))
+        async def stats_command(_, message: Message):
+            count = await self.db.get_post_count()
+            await message.reply(f"📊 Total posts: {count}")
 
-        @self.app.on_message(filters.text & (filters.private | filters.group | filters.channel))
-        async def handle_search(client, message: Message):
-            if message.text.startswith("/"):
-                return
-
-            query = message.text
-            results = await self.db.search_posts(query)
-
-            if not results:
-                await message.reply("No matching posts found.")
-                return
-
-            buttons = []
-            from utils import make_watch_url
-            for result in results:
-                url = make_watch_url(result)
-                buttons.append([{"text": result.get("channel_name", "Watch"), "url": url}])
-
-            await message.reply(
-                "Search results:",
-                reply_markup={"inline_keyboard": buttons}
-            )
-
+        # Rest of your existing handlers...
         @self.app.on_message(filters.channel)
         async def save_channel_post(client, message: Message):
-            await self.db.save_post(message)
-
-        @self.app.on_message(filters.group)
-        async def save_group_post(client, message: Message):
-            await self.db.save_post(message)
+            if message.chat.id == Config.SOURCE_CHANNEL_ID:
+                await self.db.save_post(message)
