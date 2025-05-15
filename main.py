@@ -6,7 +6,7 @@ import jinja2
 from database import Database
 from telegram_bot import TelegramBot
 from config import Config
-from web_routes import handle_index, handle_search, handle_watch, health_check
+from web import handle_index, handle_search, handle_watch, health_check
 
 async def start_app():
     # Validate configuration
@@ -18,7 +18,7 @@ async def start_app():
     
     # Start Telegram Bot
     bot = TelegramBot(db)
-    await bot.start()  # Start the bot
+    await bot.start()
     
     # Setup Web Application
     app = web.Application()
@@ -32,7 +32,6 @@ async def start_app():
         web.get('/health', health_check),
     ])
     
-    # Attach DB to app
     app['db'] = db
     return app
 
