@@ -1,30 +1,32 @@
 import asyncio
 from aiohttp import web
+from telegram_bot import TelegramBot
 from config import Config
 from database import Database
-from telegram_bot import TelegramBot
+from web import health_check
 
 async def start_app():
     # Validate config
     Config.validate()
-    print("✅ Config validated")
-
-    # In your start_app() function:
+    
+    # Initialize DB
     db = Database()
-    await db.connect()  # Instead of direct initialization
+    await db.init_db()
+    
     # Start bot
     bot = TelegramBot(db)
     asyncio.create_task(bot.start())
-
-    # Web app
+    
+    # Setup web app
     app = web.Application()
+    app.add_routes([web.get('/health', health_check)])
     app['db'] = db
-
+    
+    # Clean shutdown
     async def on_shutdown(app):
         await bot.stop()
         await db.close()
-        print("🛑 Clean shutdown complete")
-
+    
     app.on_shutdown.append(on_shutdown)
     return app
 
