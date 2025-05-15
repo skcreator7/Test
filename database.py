@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
+from datetime import datetime
 from bson import ObjectId
 from motor.motor_asyncio import AsyncIOMotorClient
-from config import Config, WarningLevel
+from config import Config
 import re
 
 class Database:
@@ -9,24 +9,19 @@ class Database:
         self.client = AsyncIOMotorClient(Config.MONGO_URI)
         self.db = self.client[Config.MONGO_DB]
         self.posts = self.db.posts
-        self.channels = self.db.channels
-        self.users = self.db.users
-        self.warnings = self.db.warnings
-        self.message_logs = self.db.message_logs
     
     async def init_db(self):
         await self.posts.create_index("message_id")
-        await self.posts.create_index("chat_id")
         await self.posts.create_index([("text", "text")])
-        await self.channels.create_index("channel_id", unique=True)
-        await self.message_logs.create_index([("chat_id", 1), ("user_id", 1)])
-        await self.message_logs.create_index([("timestamp", -1)])
-        await self.warnings.create_index([("expires_at", 1)], expireAfterSeconds=0)
     
     async def save_post(self, message):
+        """Save post from our source channel only"""
+        if message.chat.id != Config.SOURCE_CHANNEL_ID:
+            return None
+            
         post = {
             "message_id": message.id,
-            "chat_id": message.chat.id,
+            "chat_id": Config.SOURCE_CHANNEL_ID,
             "chat_title": message.chat.title,
             "text": message.text,
             "date": message.date,
@@ -34,7 +29,7 @@ class Database:
             "last_accessed": datetime.now()
         }
         await self.posts.update_one(
-            {"message_id": message.id, "chat_id": message.chat.id},
+            {"message_id": message.id},
             {"$set": post},
             upsert=True
         )
@@ -63,6 +58,7 @@ class Database:
         return None
     
     async def search_posts(self, query: str, limit: int = 10):
+        """Search only within our source channel posts"""
         return await self.posts.find(
             {"$text": {"$search": query}},
             {"score": {"$meta": "textScore"}}
@@ -72,27 +68,3 @@ class Database:
         if not ObjectId.is_valid(post_id):
             return None
         return await self.posts.find_one({"_id": ObjectId(post_id)})
-    
-    async def add_warning(self, chat_id: int, user_id: int, reason: str, level: WarningLevel = WarningLevel.WARNING):
-        await self.warnings.insert_one({
-            "chat_id": chat_id,
-            "user_id": user_id,
-            "reason": reason,
-            "level": level.value,
-            "timestamp": datetime.now(),
-            "expires_at": datetime.now() + timedelta(hours=Config.WARNING_EXPIRE_HOURS)
-        })
-    
-    async def get_warning_count(self, chat_id: int, user_id: int):
-        warnings = await self.warnings.find({
-            "chat_id": chat_id,
-            "user_id": user_id,
-            "expires_at": {"$gt": datetime.now()}
-        }).to_list(None)
-        return len(warnings), warnings
-    
-    async def clear_warnings(self, chat_id: int, user_id: int):
-        await self.warnings.delete_many({
-            "chat_id": chat_id,
-            "user_id": user_id
-        })
