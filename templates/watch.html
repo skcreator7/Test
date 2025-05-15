@@ -1,10 +1,19 @@
-<!-- this code is written by @biisal tg:biisal-files  -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ post.title }}</title>
+    <title>{{ post.title }} | SK Film Box</title>
+    <!-- Open Graph Meta Tags for Social Sharing -->
+    <meta property="og:title" content="{{ post.title }} | SK Film Box">
+    <meta property="og:description" content="Watch {{ post.title }} in multiple quality options">
+    <meta property="og:image" content="{{ post.thumbnail_url or 'https://i.imgur.com/default-thumbnail.jpg' }}">
+    <meta property="og:url" content="{{ BASE_URL }}/watch/{{ post._id }}/{{ post.title|slugify }}">
+    
+    <!-- Favicon -->
+    <link rel="icon" href="https://i.imgur.com/favicon.ico" type="image/x-icon">
+    
+    <!-- CSS Resources -->
     <link rel="stylesheet" href="https://unpkg.com/sheryjs/dist/Shery.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -13,60 +22,194 @@
           integrity="sha512-z3gLpd7yknf1YoNbCzqRKc4qyor8gaKU1qmn+CShxbuBusANI9QpRohGBreCFkKxLhei6S9CQXFEbbKuqLg0DA=="
           crossorigin="anonymous" referrerpolicy="no-referrer" />
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <style>
+        :root {
+            --primary-color: #ff2c75;
+            --secondary-color: #222;
+            --text-color: #fff;
+        }
+        
         body {
             margin: 0;
             font-family: "Segoe UI", sans-serif;
             background: #111;
-            color: white;
-            padding: 20px;
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem 2rem;
+            background: rgba(0,0,0,0.8);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+        }
+
+        #heading {
+            color: var(--primary-color);
+            font-size: 1.8rem;
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .nryt {
+            display: flex;
+            gap: 1.5rem;
+        }
+
+        .nryt a {
+            color: var(--text-color);
+            text-decoration: none;
+            font-weight: 600;
+            transition: color 0.3s;
+        }
+
+        .nryt a:hover {
+            color: var(--primary-color);
+        }
+
+        main {
+            flex: 1;
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
         }
 
         h1 {
-            color: #ff2c75;
-            font-size: 1.8em;
-            margin-bottom: 10px;
-        }
-
-        .buttons {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            margin-top: 30px;
-        }
-
-        .btn {
-            background: #222;
-            border: 2px solid #ff2c75;
-            border-radius: 10px;
-            color: white;
-            padding: 12px;
-            font-size: 1em;
+            color: var(--primary-color);
+            font-size: 2rem;
+            margin-bottom: 1.5rem;
             text-align: center;
-            text-decoration: none;
-            transition: all 0.3s;
         }
 
-        .btn:hover {
-            background: #ff2c75;
-            color: #fff;
+        .post-meta {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .meta-item {
+            background: var(--secondary-color);
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+
+        .buttons-container {
+            margin: 2rem 0;
         }
 
         .label {
-            font-size: 1.1em;
-            margin-bottom: 10px;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
             font-weight: 600;
+            text-align: center;
         }
 
-        @media screen and (min-width: 600px) {
-            .buttons {
-                flex-direction: row;
-                flex-wrap: wrap;
-            }
+        .buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
 
-            .btn {
-                flex: 1 0 30%;
-                min-width: 120px;
+        .btn {
+            background: var(--secondary-color);
+            border: 2px solid var(--primary-color);
+            border-radius: 10px;
+            color: var(--text-color);
+            padding: 1rem;
+            font-size: 1rem;
+            text-align: center;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn:hover {
+            background: var(--primary-color);
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(255, 44, 117, 0.3);
+        }
+
+        .btn i {
+            font-size: 1.2rem;
+        }
+
+        .quality-badge {
+            background: var(--primary-color);
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            margin-top: 0.3rem;
+        }
+
+        footer {
+            background: rgba(0,0,0,0.8);
+            padding: 2rem;
+            text-align: center;
+            margin-top: auto;
+        }
+
+        .copyright {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .copyright h5 {
+            margin: 0;
+            font-weight: 400;
+        }
+
+        .copyright span {
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+
+        .icons {
+            display: flex;
+            justify-content: center;
+            gap: 1.5rem;
+            margin: 1rem 0;
+        }
+
+        .icons a {
+            color: var(--text-color);
+            font-size: 1.5rem;
+            transition: color 0.3s;
+        }
+
+        .icons a:hover {
+            color: var(--primary-color);
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                flex-direction: column;
+                gap: 1rem;
+                padding: 1rem;
+            }
+            
+            .buttons {
+                grid-template-columns: 1fr;
+            }
+            
+            h1 {
+                font-size: 1.5rem;
             }
         }
     </style>
@@ -76,38 +219,101 @@
     <nav>
         <div class="nleft">
             <a href="https://t.me/skcreator7">
-                <h4 id="heading" style="z-index: 100;" class="magnet">Sk Film Box</h4>
+                <h4 id="heading" class="magnet">SK Film Box</h4>
             </a>
         </div>
         <div class="nryt">
-            <a class="home-btn magnet" href="#main">HOME</a>
-            <a href="#sec1" class="about-btn magnet">ABOUT</a>
+            <a class="home-btn magnet" href="/">HOME</a>
+            <a href="/about" class="about-btn magnet">ABOUT</a>
+            <a href="/search" class="search-btn magnet">SEARCH</a>
         </div>
     </nav>
 
-    <h1>{{ post.title }}</h1>
+    <main>
+        <h1>{{ post.title }}</h1>
+        
+        {% if post.meta %}
+        <div class="post-meta">
+            {% if post.meta.quality %}<span class="meta-item">Quality: {{ post.meta.quality|join(', ') }}</span>{% endif %}
+            {% if post.meta.size %}<span class="meta-item">Size: {{ post.meta.size }}</span>{% endif %}
+            {% if post.meta.date %}<span class="meta-item">Date: {{ post.meta.date }}</span>{% endif %}
+        </div>
+        {% endif %}
 
-    <div class="label">Available Links:</div>
-    <div class="buttons">
-        {% set labels = ['480p', '720p', '1080p', 'Episode 1', 'Episode 2', 'Episode 3', 'Episode 4', 'Episode 5', 'Episode 6', 'Episode 7', 'Episode 8', 'Episode 9', 'Episode 10'] %}
-        {% for link in links %}
-            {% if links|length <= 3 %}
-                <a href="{{ link }}" target="_blank" class="btn">{{ labels[loop.index0] }}</a>
-            {% else %}
-                <a href="{{ link }}" target="_blank" class="btn">Episode {{ loop.index }}</a>
-            {% endif %}
-        {% endfor %}
-    </div>
+        <div class="buttons-container">
+            <div class="label">Available Links:</div>
+            <div class="buttons">
+                {% for link in post.links %}
+                    <a href="{{ link.url }}" target="_blank" rel="noopener noreferrer" class="btn">
+                        {% if link.label %}
+                            {{ link.label }}
+                        {% else %}
+                            {% if post.links|length <= 3 %}
+                                {{ ['480p', '720p', '1080p'][loop.index0] }}
+                            {% else %}
+                                Episode {{ loop.index }}
+                            {% endif %}
+                        {% endif %}
+                        <span class="quality-badge">
+                            {% if link.quality %}{{ link.quality }}{% else %}HD{% endif %}
+                        </span>
+                    </a>
+                {% endfor %}
+            </div>
+        </div>
+        
+        {% if post.description %}
+        <div class="description-box" style="background: #222; padding: 1.5rem; border-radius: 10px; margin-top: 2rem;">
+            <h3 style="color: var(--primary-color); margin-bottom: 1rem;">Description:</h3>
+            <p>{{ post.description }}</p>
+        </div>
+        {% endif %}
+    </main>
 
     <footer>
-        <div class="copyright ">
-            <h5 class="text-center">Copyright © 2023 <a href="https://t.me/SKCREATOR7"><span>SK</span></a>. All Rights Reserved.</h5>
+        <div class="copyright">
+            <h5>Copyright © {{ now.year }} <a href="https://t.me/SKCREATOR7"><span>SK</span></a>. All Rights Reserved.</h5>
             <div class="icons">
-                <a href="https://github.com"><i class="fa-brands fa-github fa-lg"></i></a>
-                <a href="https://t.me/Skcreator7"><i class="fa-brands fa-telegram fa-lg"></i></a>
+                <a href="https://github.com" aria-label="GitHub"><i class="fa-brands fa-github"></i></a>
+                <a href="https://t.me/Skcreator7" aria-label="Telegram"><i class="fa-brands fa-telegram"></i></a>
+                <a href="https://twitter.com" aria-label="Twitter"><i class="fa-brands fa-twitter"></i></a>
             </div>
             <h4 style="font-weight: 700;">This Page Is Designed By <a href="https://t.me/skcreator7"><span>SK</span></a></h4>
         </div>
     </footer>
+
+    <!-- Shery.js Animation Script -->
+    <script src="https://unpkg.com/sheryjs/dist/Shery.js"></script>
+    <script>
+        // Initialize Shery.js animations
+        Shery.mouseFollower({
+            skew: true,
+            ease: "cubic-bezier(0.23, 1, 0.320, 1)",
+            duration: 0.5
+        });
+        
+        Shery.makeMagnet(".magnet", {
+            ease: "cubic-bezier(0.23, 1, 0.320, 1)",
+            duration: 0.5
+        });
+
+        // Add click animation to buttons
+        document.querySelectorAll('.btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                this.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    this.style.transform = '';
+                }, 200);
+            });
+        });
+
+        // Track link clicks
+        document.querySelectorAll('a[target="_blank"]').forEach(link => {
+            link.addEventListener('click', function() {
+                // You can add analytics here
+                console.log('Link clicked:', this.href);
+            });
+        });
+    </script>
 </body>
 </html>
