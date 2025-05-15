@@ -5,3 +5,18 @@ services:
     ports:
       - port: 8000
         http_path: /health
+    env:
+      - name: BOT_TOKEN
+        secret: true
+      - name: API_ID
+        secret: true
+      - name: API_HASH
+        secret: true
+      - name: SOURCE_CHANNEL_ID
+        secret: true
+      - name: MONGO_URI
+        secret: true
+      - name: BASE_URL
+        value: https://telegram-bot-<your-koyeb-org>.koyeb.app
+      - name: ADMINS
+        value: "123456789" # Comma-separated user IDs
