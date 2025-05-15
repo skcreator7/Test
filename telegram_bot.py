@@ -23,12 +23,13 @@ class TelegramBot:
         await self.app.stop()
 
     async def auto_delete(self, message: Message, delay: int):
-        """Auto-delete message after delay"""
-        await asyncio.sleep(delay)
-        try:
+    """Safe auto-delete with client check"""
+    await asyncio.sleep(delay)
+    try:
+        if await self.app.is_connected():
             await message.delete()
-        except Exception as e:
-            print(f"⚠️ Couldn't delete message: {e}")
+    except Exception as e:
+        print(f"⚠️ Couldn't delete message: {e}")
 
     def setup_handlers(self):
         # Save posts from source channel
