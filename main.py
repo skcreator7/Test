@@ -56,7 +56,7 @@ def main():
     asyncio.set_event_loop(loop)
     app = loop.run_until_complete(init_app())
     
-    # Handle signals - FIXED THIS SECTION
+    # Handle signals
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(
             sig, 
