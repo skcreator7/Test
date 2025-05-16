@@ -17,7 +17,6 @@ async def on_shutdown(app):
 
 async def start_app():
     """Initialize and return application"""
-    # Initialize components
     db = Database(Config.MONGO_URI)
     await db.initialize()
     
@@ -31,12 +30,10 @@ async def start_app():
 
 def main():
     try:
-        loop = asyncio.get_event_loop()
-        app = loop.run_until_complete(start_app())
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
         
-        # Setup signal handlers
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, lambda: loop.stop())
+        app = loop.run_until_complete(start_app())
         
         web.run_app(
             app,
