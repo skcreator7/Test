@@ -5,7 +5,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self, uri: str, db_name: str = "movie_bot"):  # Added default db_name
+    def __init__(self, uri: str, db_name: str = "movie_bot"):
         self.client = AsyncIOMotorClient(uri)
         self.db = self.client[db_name]
         self.posts = self.db.posts
