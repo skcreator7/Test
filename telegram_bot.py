@@ -21,11 +21,16 @@ class TelegramBot:
             workers=Config.WORKERS
         )
         
-        # Register handlers
+        # Register handlers using the correct filter syntax
         self.app.on_message(filters.chat(Config.MONITORED_CHATS))(self.handle_channel_message)
         self.app.on_message(filters.group)(self.handle_group_message)
         self.app.on_message(filters.private)(self.handle_private_message)
-        self.app.on_message(filters.text & ~filters.command)(self.handle_search_request)
+        
+        # For text messages that aren't commands
+        @self.app.on_message(filters.text)
+        async def text_handler(client: Client, message: Message):
+            if not message.command:
+                await self.handle_search_request(client, message)
 
     async def handle_channel_message(self, client: Client, message: Message):
         """Save channel posts to database"""
