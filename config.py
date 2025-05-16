@@ -10,14 +10,15 @@ class Config:
     MONGO_URI = os.getenv("MONGO_URI")
     BASE_URL = os.getenv("BASE_URL")
     
-    # Optional Configuration
+    # Optional Configuration with Defaults
     ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", "8000"))
     MONGO_DB = os.getenv("MONGO_DB", "movie_bot")
+    WORKERS = int(os.getenv("WORKERS", "4"))  # Added WORKERS with default value
 
     @classmethod
-    def validate(cls):  # Changed from validate_config to validate
+    def validate(cls):
         """Validate all required configuration values"""
         required = {
             'BOT_TOKEN': str,
