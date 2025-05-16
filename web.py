@@ -5,67 +5,36 @@ import logging
 import re
 from config import Config
 from typing import List, Dict, Optional, Any
-from pyrogram.types import InputPeerChannel
+from datetime import datetime
 from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
 
-def is_valid_url(url: str) -> bool:
-    """Validate URL format"""
-    try:
-        result = urlparse(url)
-        return all([result.scheme, result.netloc])
-    except ValueError:
-        return False
-
 def extract_links(text: str) -> List[Dict[str, str]]:
-    """
-    Extract and categorize streaming links from text with enhanced validation
-    
-    Args:
-        text: The text content to search for links
-        
-    Returns:
-        List of dictionaries containing validated links with quality labels
-    """
+    """Extract and validate streaming links"""
     patterns = [
         (r'(?:480p|SD).*?(http[^\s]+)', '480p'),
         (r'(?:720p\s*HEVC|x265).*?(http[^\s]+)', '720p HEVC'),
         (r'720p.*?(http[^\s]+)', '720p'),
         (r'(?:1080p|FHD).*?(http[^\s]+)', '1080p'),
-        (r'(?:Episode\s+\d+|EP\s*\d+).*?(http[^\s]+)', 'Episode'),
         (r'(?:4K|2160p|UHD).*?(http[^\s]+)', '4K UHD')
     ]
     
     links = []
-    seen_urls = set()
-    
     for pattern, label in patterns:
         matches = re.findall(pattern, text, re.IGNORECASE)
         for url in matches:
-            # Clean URL and validate
             clean_url = url.strip('.,;()[]{}"\'')
-            if clean_url not in seen_urls and is_valid_url(clean_url):
+            if urlparse(clean_url).scheme in ('http', 'https'):
                 links.append({
                     'url': clean_url,
                     'label': label,
                     'host': urlparse(clean_url).netloc
                 })
-                seen_urls.add(clean_url)
-    
-    return links[:15]  # Increased limit with deduplication
+    return links[:15]
 
 @template('watch.html')
 async def watch(request: web.Request) -> Dict[str, Any]:
-    """
-    Handle watch page requests with enhanced caching and fallback logic
-    
-    Args:
-        request: The incoming web request
-        
-    Returns:
-        Context dictionary for template rendering
-    """
     db = request.app['db']
     bot = request.app['bot']
     post_id = request.query.get('post_id')
@@ -75,59 +44,35 @@ async def watch(request: web.Request) -> Dict[str, Any]:
     links = []
     error = None
     
-    if not post_id or not chat_id:
-        error = "Missing post_id or chat_id parameters"
-    else:
+    if post_id and chat_id:
         try:
-            # Try to get from database first
+            # Try database first
             post = await db.posts.find_one({
                 "message_id": int(post_id),
                 "chat_id": int(chat_id)
             })
             
-            # If not in DB or older than 1 day, fetch from Telegram
-            if not post or (post.get('date') and 
-                          (datetime.utcnow() - post['date']).days > 1):
-                try:
-                    channel = await bot._get_channel_peer(int(chat_id))
-                    msg = await bot.app.get_messages(
-                        entity=channel,
-                        message_ids=int(post_id)
-                    )
-                    
-                    if msg:
-                        post = {
-                            "chat_id": msg.chat.id,
-                            "message_id": msg.id,
-                            "text": msg.text or msg.caption or "",
-                            "date": msg.date,
-                            "chat_title": msg.chat.title,
-                            "last_updated": datetime.utcnow()
-                        }
-                        # Update or insert with atomic operation
-                        await db.posts.update_one(
-                            {
-                                "message_id": int(post_id),
-                                "chat_id": int(chat_id)
-                            },
-                            {"$set": post},
-                            upsert=True
-                        )
-                except Exception as fetch_error:
-                    logger.error(f"Telegram fetch error: {fetch_error}")
-                    if not post:  # Only error if we have no cached version
-                        error = "Failed to fetch post from Telegram"
+            # Fetch from Telegram if not in DB or stale
+            if not post:
+                msg = await bot.app.get_messages(
+                    chat_id=int(chat_id),
+                    message_ids=int(post_id)
+                )
+                if msg:
+                    post = {
+                        "chat_id": msg.chat.id,
+                        "message_id": msg.id,
+                        "text": msg.text or msg.caption or "",
+                        "date": msg.date,
+                        "chat_title": msg.chat.title
+                    }
+                    await db.save_post(post)
             
             if post:
                 links = extract_links(post.get('text', ''))
-                if not links:
-                    error = "No valid streaming links found"
-        except ValueError as ve:
-            error = "Invalid post_id or chat_id format"
-            logger.error(f"Value error: {ve}")
         except Exception as e:
-            error = "An error occurred while processing your request"
-            logger.error(f"Watch handler error: {e}", exc_info=True)
+            logger.error(f"Error fetching post: {e}")
+            error = "Failed to load post"
     
     return {
         'post': post,
@@ -138,10 +83,10 @@ async def watch(request: web.Request) -> Dict[str, Any]:
     }
 
 def create_app(db, bot) -> web.Application:
-    """Configure and return the web application with enhanced settings"""
+    """Create web application with routes"""
     app = web.Application()
     
-    # Configure Jinja2 templates
+    # Configure Jinja2
     setup_jinja2(
         app,
         loader=FileSystemLoader('templates'),
@@ -152,41 +97,11 @@ def create_app(db, bot) -> web.Application:
     # Add routes
     app.add_routes([
         web.get('/watch', watch),
-        web.static('/static', 'static', follow_symlinks=True)
+        web.static('/static', 'static')
     ])
     
     # Store dependencies
     app['db'] = db
     app['bot'] = bot
     
-    # Add error handlers
-    async def handle_404(request):
-        return web.json_response({'error': 'Not found'}, status=404)
-    
-    async def handle_500(request):
-        return web.json_response({'error': 'Server error'}, status=500)
-    
-    app.middlewares.append(error_middleware)
-    
     return app
-
-@web.middleware
-async def error_middleware(request, handler):
-    """Global error handling middleware"""
-    try:
-        response = await handler(request)
-        if response.status != 404:
-            return response
-        message = response.message
-    except web.HTTPException as ex:
-        if ex.status != 404:
-            raise
-        message = ex.reason
-    except Exception as e:
-        logger.error(f"Unhandled exception: {e}", exc_info=True)
-        return web.json_response(
-            {'error': 'Internal server error'},
-            status=500
-        )
-    
-    return web.json_response({'error': message}, status=404)
