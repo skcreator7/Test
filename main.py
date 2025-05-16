@@ -39,7 +39,7 @@ async def main():
     site = web.TCPSite(runner, "0.0.0.0", 8080)
     await site.start()
 
-    logger.info("Bot and web server running at http://0.0.0.0:8080")
+    logger.info("Bot and web server running at http://0.0.0.0:8000")
 
     await asyncio.Event().wait()  # Keep running
 
