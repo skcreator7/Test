@@ -1,23 +1,26 @@
 import os
+from typing import List
 
 class Config:
-    # Telegram
+    # Required
+    BOT_TOKEN = os.getenv("BOT_TOKEN")
     API_ID = int(os.getenv("API_ID"))
     API_HASH = os.getenv("API_HASH")
-    BOT_TOKEN = os.getenv("BOT_TOKEN")
-    WORKERS = int(os.getenv("WORKERS", 4))
+    SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID"))
+    MONGO_URI = os.getenv("MONGO_URI")
+    BASE_URL = os.getenv("BASE_URL")
     
-    # MongoDB
-    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
-    DB_NAME = os.getenv("DB_NAME", "telegram_monitor")
+    # Optional with defaults
+    ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
+    HOST = os.getenv("HOST", "0.0.0.0")
+    PORT = int(os.getenv("PORT", "8000"))
+    MONGO_DB = os.getenv("MONGO_DB", "telegram_bot")
     
-    # Web
-    PORT = int(os.getenv("PORT", 8000))
-    BASE_URL = os.getenv("BASE_URL", "https://your-app-name.koyeb.app")
+    # Private channels (add access hashes as needed)
+    PRIVATE_CHANNELS = {
+        int(SOURCE_CHANNEL_ID): "your_access_hash_here"  # Add more as needed
+    }
     
-    # Monitoring
-    MONITORED_CHATS = [
-        int(chat_id) for chat_id in 
-        os.getenv("MONITORED_CHATS", "-1002193268219").split(",")
-        if chat_id.strip()
-    ]
+    @classmethod
+    def get_private_hash(cls, channel_id: int) -> str:
+        return cls.PRIVATE_CHANNELS.get(channel_id, "")
