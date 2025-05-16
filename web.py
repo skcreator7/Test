@@ -1,79 +1,104 @@
-import aiohttp_jinja2
 from aiohttp import web
+from aiohttp_jinja2 import template, setup as setup_jinja2
 from jinja2 import FileSystemLoader
-from bson import ObjectId
 import logging
+import re
 
 logger = logging.getLogger(__name__)
 
-
 def create_app(db, bot):
     app = web.Application()
-    aiohttp_jinja2.setup(app, loader=FileSystemLoader("templates"))
-    app["db"] = db
-    app["bot"] = bot
-
-    app.router.add_get("/", index)
-    app.router.add_get("/search", search_handler)
-    app.router.add_get("/watch/{post_id}/{title}", watch_handler)
-    app.router.add_static("/static/", path="static", name="static")
-
+    setup_jinja2(app, loader=FileSystemLoader('templates'))
+    
+    app['db'] = db
+    app['bot'] = bot
+    
+    # Setup routes
+    app.router.add_get('/', home)
+    app.router.add_get('/search', search)
+    app.router.add_get('/view/{post_id}', view_post)
+    app.router.add_static('/static/', path='static')
+    
     return app
 
-
-@aiohttp_jinja2.template("index.html")
-async def index(request):
-    return {"title": "Movie Bot"}
-
-
-@aiohttp_jinja2.template("search.html")
-async def search_handler(request):
-    query = request.rel_url.query.get("q", "").strip()
-    if not query:
-        return {"query": "", "results": []}
-
-    db = request.app["db"]
-    cursor = db.posts.find({"$text": {"$search": query}}).sort(
-        [("score", {"$meta": "textScore"})]
-    ).limit(10)
-
+async def fetch_posts(bot, query: str = "", limit: int = 20):
     results = []
-    async for doc in cursor:
-        results.append({
-            "title": doc.get("title", "Untitled"),
-            "url": f"/watch/{doc['_id']}/{doc.get('title', 'watch').replace(' ', '-')}"
-        })
+    async for msg in bot.app.search_messages(
+        chat_id=Config.SOURCE_CHANNEL_ID,
+        query=query,
+        limit=limit
+    ):
+        if msg.text:
+            lines = [line.strip() for line in msg.text.split('\n') if line.strip()]
+            if lines:
+                post = {
+                    'id': msg.id,
+                    'title': lines[0],
+                    'text': msg.text,
+                    'has_episodes': any('episode' in line.lower() for line in lines)
+                }
+                results.append(post)
+    return results
 
-    return {"query": query, "results": results}
+async def parse_post(text: str):
+    lines = [line.strip() for line in text.split('\n') if line.strip()]
+    if not lines:
+        return {}
+    
+    post = {'title': lines[0], 'links': {}, 'episodes': {}}
+    current_episode = None
+    
+    for line in lines[1:]:
+        # Check for episode markers
+        episode_match = re.match(r'^(Episode|EP)\s*(\d+)', line, re.IGNORECASE)
+        if episode_match:
+            current_episode = episode_match.group(2)
+            post['episodes'][current_episode] = {}
+            continue
+            
+        # Process quality links
+        if '🎞️' in line and 'http' in line and 'youtube' not in line.lower():
+            parts = line.split(':', 1)
+            if len(parts) == 2:
+                quality = parts[0].replace('🎞️', '').strip()
+                url = parts[1].strip()
+                
+                if current_episode:
+                    post['episodes'][current_episode][quality] = url
+                else:
+                    post['links'][quality] = url
+    
+    return post
 
+@template('index.html')
+async def home(request):
+    return {'title': 'Movie Search Home'}
 
-@aiohttp_jinja2.template("watch.html")
-async def watch_handler(request):
-    post_id = request.match_info.get("post_id")
-    db = request.app["db"]
-
-    try:
-        post = await db.posts.find_one({"_id": ObjectId(post_id)})
-    except Exception:
-        post = None
-
-    if not post:
-        raise web.HTTPNotFound()
-
-    links = post.get("links", [])
-    buttons = []
-
-    if len(links) <= 3:
-        # show by quality
-        buttons = [{"label": link["label"], "url": link["url"]} for link in links]
-    else:
-        # show as episodes
-        buttons = [
-            {"label": f"Episode {i+1}", "url": link["url"]} for i, link in enumerate(links)
-        ]
-
+@template('search.html')
+async def search(request):
+    query = request.query.get('q', '').strip()
+    posts = await fetch_posts(request.app['bot'], query)
     return {
-        "title": post.get("title", "Watch Now"),
-        "links": buttons,
-        "post": post
+        'query': query,
+        'posts': posts,
+        'title': f"Search Results for '{query}'" if query else "Search"
     }
+
+@template('view.html')
+async def view_post(request):
+    post_id = int(request.match_info['post_id'])
+    query = request.query.get('q', '')
+    
+    msg = await request.app['bot'].app.get_messages(
+        Config.SOURCE_CHANNEL_ID,
+        post_id
+    )
+    
+    if not msg.text:
+        raise web.HTTPNotFound()
+    
+    post_data = await parse_post(msg.text)
+    post_data['id'] = post_id
+    post_data['query'] = query
+    
+    return post_data
