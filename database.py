@@ -1,46 +1,57 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import Config
-from bson import ObjectId
-from datetime import datetime
+from pymongo import TEXT
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Database:
-    def __init__(self):
-        self.client = None
-        self.db = None
+    def __init__(self, uri):
+        self.client = AsyncIOMotorClient(uri)
+        self.db = self.client[Config.DB_NAME]
+        self.posts = self.db.posts
 
-    async def init_db(self):
-        """Initialize database connection and create indexes"""
-        self.client = AsyncIOMotorClient(Config.MONGO_URI)
-        self.db = self.client[Config.MONGO_DB]
-        
-        # Create text index for searching
-        await self.db.posts.create_index([("text", "text")])
-        
-        # Verify connection
-        await self.client.admin.command('ping')
-        print("✅ MongoDB connected with text index")
+    async def initialize(self):
+        """Create indexes"""
+        try:
+            await self.posts.create_index([("text", TEXT)])
+            logger.info("Database indexes created")
+        except Exception as e:
+            logger.error(f"Index creation failed: {e}")
 
-    async def save_post(self, post_data: dict):
-        """Save post to database with metadata"""
-        post_data.update({
-            "source": "SOURCE_CHANNEL",
-            "saved_at": datetime.utcnow()
-        })
-        result = await self.db.posts.insert_one(post_data)
-        return result.inserted_id
+    async def save_post(self, post_data):
+        """Save post with duplicate check"""
+        try:
+            existing = await self.posts.find_one({
+                "chat_id": post_data["chat_id"],
+                "message_id": post_data["message_id"]
+            })
+            if not existing:
+                await self.posts.insert_one(post_data)
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Save post error: {e}")
+            return False
 
-    async def search_posts(self, query: str, limit: int = 5):
-        """Search posts using MongoDB text search"""
-        return await self.db.posts.find(
-            {"$text": {"$search": query}},
-            {"score": {"$meta": "textScore"}}
-        ).sort([("score", {"$meta": "textScore"})]).limit(limit).to_list(None)
-
-    async def get_post_count(self):
-        """Get count of all posts"""
-        return await self.db.posts.count_documents({})
-
-    async def close(self):
-        """Cleanly close connection"""
-        if self.client:
-            self.client.close()
+    async def search_posts(self, query, limit=10):
+        """Full-text search with highlighting"""
+        try:
+            cursor = self.posts.find(
+                {"$text": {"$search": query}},
+                {"score": {"$meta": "textScore"}}
+            ).sort([("score", {"$meta": "textScore"})]).limit(limit)
+            
+            results = []
+            async for doc in cursor:
+                # Add highlighting
+                text = doc.get("text", "")
+                for word in query.split():
+                    text = text.replace(word, f"<b>{word}</b>")
+                doc["highlighted_text"] = text
+                results.append(doc)
+            
+            return results
+        except Exception as e:
+            logger.error(f"Search error: {e}")
+            return []
