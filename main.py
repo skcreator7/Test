@@ -6,7 +6,6 @@ from database import Database
 from config import Config
 import logging
 import signal
-from datetime import datetime
 
 logging.basicConfig(
     level=logging.INFO,
