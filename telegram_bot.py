@@ -1,108 +1,77 @@
+import re
+from typing import List
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-from config import Config
-import logging
-from typing import List, Optional
+from pyrogram.types import Message
+from pymongo.collection import Collection
 
-logger = logging.getLogger(__name__)
 
 class TelegramBot:
-    def __init__(self, db):
+    def __init__(self, client: Client, db):
+        self.client = client
         self.db = db
-        self.app = Client(
-            "movie_bot",
-            api_id=Config.API_ID,
-            api_hash=Config.API_HASH,
-            bot_token=Config.BOT_TOKEN,
-            workers=Config.WORKERS
+        self.posts: Collection = db.posts
+
+        # Monitor new posts in channels
+        self.client.add_handler(
+            handler=filters.channel,
+            callback=self.save_post
         )
-        self._register_handlers()
 
-    async def initialize(self):
-        await self.app.start()
-        me = await self.app.get_me()
-        logger.info(f"Bot started as @{me.username}")
-        return self
-
-    def _register_handlers(self):
-        @self.app.on_message(filters.command("start") & filters.private)
-        async def start_handler(client, message: Message):
-            await message.reply(
-                "🎬 Welcome to Movie Search Bot!\n\n"
-                "Simply type any movie name to search\n"
-                "Example: `Avengers Endgame`",
-                parse_mode="markdown"
-            )
-
-        @self.app.on_message(filters.text & filters.private & ~filters.command)
+        # For search queries in private or group
+        @self.client.on_message(filters.text & (filters.private | filters.group))
         async def search_handler(client, message: Message):
             query = message.text.strip()
-            if len(query) < 3:
-                await message.reply("Please enter at least 3 characters to search")
+            results = await self._search_posts(query)
+            if not results:
+                await message.reply("No results found.")
                 return
-            
-            try:
-                results = await self._search_movies(query)
-                if not results:
-                    await message.reply("No results found. Try different keywords")
-                    return
-                
-                # Send first result with more options button
-                first_result = results[0]
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("More Results", callback_data=f"more:{query}")]
-                ])
-                
-                await message.reply(
-                    f"🎥 *{first_result['title']}*\n"
-                    f"📅 {first_result.get('year', 'N/A')}\n"
-                    f"⭐ Rating: {first_result.get('rating', 'N/A')}\n"
-                    f"🔗 [More Info]({first_result['url']})",
-                    reply_markup=keyboard,
-                    parse_mode="markdown"
-                )
-                
-            except Exception as e:
-                logger.error(f"Search error: {e}")
-                await message.reply("Error searching. Please try again later")
+            reply = "Search Results:\n\n"
+            for item in results:
+                reply += f"• {item['title']}\nhttps://your-domain/watch/{item['_id']}/{item['title'].replace(' ', '-')}\n\n"
+            await message.reply(reply)
 
-        @self.app.on_callback_query(filters.regex("^more:"))
-        async def more_results_handler(client, callback_query):
-            query = callback_query.data.split(":")[1]
-            results = await self._search_movies(query)
-            
-            response = ["🔍 Search Results:"]
-            for idx, result in enumerate(results[:5], 1):
-                response.append(
-                    f"{idx}. [{result['title']}]({result['url']}) "
-                    f"({result.get('year', 'N/A')})"
-                )
-            
-            await callback_query.message.edit_text(
-                "\n".join(response),
-                parse_mode="markdown"
-            )
-            await callback_query.answer()
+    async def save_post(self, client: Client, message: Message):
+        if not message.text and not message.caption:
+            return
 
-    async def _search_movies(self, query: str) -> List[dict]:
-        """Search movies in database or API"""
-        # This should be replaced with your actual search logic
-        # Example mock data - replace with real database/API calls
-        return [
-            {
-                "title": f"Movie about {query}",
-                "year": "2023",
-                "rating": "7.5",
-                "url": "https://example.com/movie1"
-            },
-            {
-                "title": f"Another {query} movie",
-                "year": "2021",
-                "rating": "8.0",
-                "url": "https://example.com/movie2"
-            }
-        ]
+        content = message.text or message.caption
+        links = self.extract_links(content)
+        if not links:
+            return
 
-    async def stop(self):
-        await self.app.stop()
-        logger.info("Bot stopped")
+        title = content.split('\n')[0].strip()
+        post_data = {
+            "chat_id": message.chat.id,
+            "message_id": message.id,
+            "title": title,
+            "content": content,
+            "links": links
+        }
+
+        await self.posts.update_one(
+            {"chat_id": message.chat.id, "message_id": message.id},
+            {"$set": post_data},
+            upsert=True
+        )
+
+    def extract_links(self, text: str) -> List[dict]:
+        lines = text.split('\n')
+        links = []
+        for line in lines:
+            match = re.match(r"^\s*[\W\s]*([\w\s]+)\s*:\s*(https?://\S+)", line)
+            if match:
+                label = match.group(1).strip()
+                url = match.group(2).strip()
+                links.append({"label": label, "url": url})
+        return links
+
+    async def _search_posts(self, query: str) -> List[dict]:
+        cursor = self.posts.find(
+            {"$text": {"$search": query}},
+            {"score": {"$meta": "textScore"}}
+        ).sort([("score", {"$meta": "textScore"})]).limit(10)
+
+        results = []
+        async for doc in cursor:
+            results.append(doc)
+        return results
