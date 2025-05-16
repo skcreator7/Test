@@ -15,7 +15,7 @@ class Config:
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", "8000"))
     MONGO_DB = os.getenv("MONGO_DB", "movie_bot")
-    WORKERS = int(os.getenv("WORKERS", "4"))  # Added WORKERS with default value
+    WORKERS = int(os.getenv("WORKERS", "4"))
 
     @classmethod
     def validate(cls):
