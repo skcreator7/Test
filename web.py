@@ -2,7 +2,6 @@ from aiohttp import web
 from aiohttp_jinja2 import template, setup as setup_jinja2
 import jinja2
 import logging
-from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
