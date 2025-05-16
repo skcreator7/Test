@@ -29,7 +29,7 @@ async def on_shutdown(app: web.Application):
 async def init_app():
     """Initialize application components"""
     # Validate config first
-    Config.validate_config()
+    Config.validate()  # Changed from validate_config() to validate()
     
     # Initialize database
     db = Database(Config.MONGO_URI, Config.MONGO_DB)
