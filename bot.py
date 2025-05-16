@@ -1,82 +1,73 @@
 import re
-import logging
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from bson import ObjectId
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
-
+LINK_REGEX = r'(https?://[^\s]+)'
+CHANNEL_USERNAMES = ["channelusername1", "channelusername2"]  # Replace with your channel usernames
 
 class TelegramBot:
     def __init__(self, client: Client, db):
         self.client = client
         self.db = db
 
-        self.client.add_handler(filters.chat_type.groups | filters.chat_type.private, self.search_handler, group=1)
-        self.client.add_handler(filters.channel, self.channel_post_handler, group=2)
+        @client.on_message(filters.text & filters.private)
+        async def handle_private_message(bot, message: Message):
+            await self.process_query(message)
 
-    async def search_handler(self, client: Client, message: Message):
-        if not message.text:
-            return
+        @client.on_message(filters.text & filters.group)
+        async def handle_group_message(bot, message: Message):
+            await self.process_query(message)
 
+    async def process_query(self, message: Message):
         query = message.text.strip()
-
         if len(query) < 3:
             await message.reply("Please enter a longer search query.")
             return
 
-        results = self.db.posts.find({"$text": {"$search": query}}).sort(
-            [("score", {"$meta": "textScore"})]
-        ).limit(5)
+        posts_collection = self.db["posts"]
+        results = posts_collection.find(
+            {"$text": {"$search": query}},
+            {"score": {"$meta": "textScore"}}
+        ).sort([("score", {"$meta": "textScore"})]).limit(1)
 
-        reply = f"**Search Results for:** `{query}`\n\n"
-        found = False
+        result = await results.to_list(length=1)
+        if not result:
+            await message.reply("No matching posts found.")
+            return
 
-        async for doc in results:
-            found = True
-            post_id = str(doc["_id"])
-            title = doc.get("title", "Untitled")
-            title_slug = title.replace(" ", "-")
-            url = f"{os.getenv('BASE_URL')}/watch/{post_id}/{title_slug}"
-            reply += f"• [{title}]({url})\n"
+        post = result[0]
+        post_id = str(post["_id"])
+        title = post.get("title", "Untitled").replace(" ", "-")[:40]
+        watch_url = f"https://your-app-name.koyeb.app/watch/{post_id}/{title}"
 
-        if not found:
-            reply = "No matching posts found."
+        await message.reply(f"Here you go:\n{watch_url}")
 
-        await message.reply(reply, disable_web_page_preview=True)
-
-    async def channel_post_handler(self, client: Client, message: Message):
+    async def save_post(self, message: Message):
         if not message.text:
             return
 
-        text = message.text
-        title_line = text.splitlines()[0]
-        title = title_line.strip()
-
-        links = []
-        for line in text.splitlines():
-            match = re.search(r"(https?://\S+)", line)
-            if match:
-                label = line.split(":")[0].strip(" 🎞️") if ":" in line else "Link"
-                links.append({
-                    "label": label,
-                    "url": match.group(1)
-                })
-
+        links = re.findall(LINK_REGEX, message.text)
         if not links:
-            return  # Skip posts without links
+            return
 
-        # Save to DB
-        await self.db.posts.update_one(
-            {"message_id": message.id, "chat_id": message.chat.id},
-            {"$set": {
-                "title": title,
-                "text": text,
-                "links": links,
-                "chat_id": message.chat.id,
-                "message_id": message.id
-            }},
+        post_data = {
+            "text": message.text,
+            "links": links,
+            "title": message.text.split("\n")[0][:100],
+            "chat_id": message.chat.id,
+            "message_id": message.id,
+            "date": datetime.utcnow()
+        }
+
+        await self.db["posts"].update_one(
+            {"chat_id": message.chat.id, "message_id": message.id},
+            {"$setOnInsert": post_data},
             upsert=True
         )
 
-        logger.info(f"Saved post: {title}")
+    async def monitor_channels(self):
+        for username in CHANNEL_USERNAMES:
+            async for message in self.client.get_chat_history(username, limit=100):
+                await self.save_post(message)
