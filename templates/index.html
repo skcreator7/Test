@@ -2,13 +2,23 @@
 <html>
 <head>
     <title>{{ title }}</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .search-box { margin: 20px 0; }
+        input[type="text"] { padding: 8px; width: 300px; }
+        button { padding: 8px 15px; }
+        .post { margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 5px; }
+        .post-title { font-weight: bold; font-size: 1.2em; margin-bottom: 10px; }
+        .quality-btn { display: inline-block; margin: 5px; padding: 5px 10px; background: #4285f4; color: white; text-decoration: none; border-radius: 3px; }
+        .episodes { margin-top: 15px; }
+        .episode { margin-bottom: 10px; }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>{{ title }}</h1>
+    <h1>Movie Search</h1>
+    <div class="search-box">
         <form action="/search" method="get">
-            <input type="text" name="q" placeholder="Search movies...">
+            <input type="text" name="q" placeholder="Search movies/series..." value="{{ query }}">
             <button type="submit">Search</button>
         </form>
     </div>
