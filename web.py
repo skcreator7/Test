@@ -2,9 +2,10 @@ from aiohttp import web
 from aiohttp_jinja2 import template, setup as setup_jinja2
 from jinja2 import FileSystemLoader, select_autoescape
 import logging
+import re
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import List, Dict, Any, Optional  # Added type imports
 
 logger = logging.getLogger(__name__)
 
