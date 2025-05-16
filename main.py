@@ -5,11 +5,18 @@ from database import Database
 from web import create_app
 from config import Config
 import logging
+import signal
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+async def on_shutdown(app):
+    """Handle application shutdown"""
+    bot = app['bot']
+    await bot.stop()
+
 async def start_app():
+    """Initialize and return application"""
     # Initialize components
     db = Database(Config.MONGO_URI)
     await db.initialize()
@@ -18,12 +25,21 @@ async def start_app():
     await bot.start()
     
     app = create_app(db, bot)
+    app['bot'] = bot
+    app.on_shutdown.append(on_shutdown)
     return app
 
 def main():
     try:
+        loop = asyncio.get_event_loop()
+        app = loop.run_until_complete(start_app())
+        
+        # Setup signal handlers
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(sig, lambda: loop.stop())
+        
         web.run_app(
-            start_app(),
+            app,
             port=Config.PORT,
             handle_signals=True
         )
