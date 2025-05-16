@@ -1,12 +1,13 @@
 import asyncio
+import signal
+import logging
 from aiohttp import web
 from web import create_app
 from telegram_bot import TelegramBot
 from database import Database
 from config import Config
-import logging
-import signal
 
+# Setup logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -14,50 +15,54 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def shutdown(signal, loop, app):
-    """Graceful shutdown handler"""
-    logger.info(f"Received {signal.name}, shutting down...")
+async def init_app():
+    app = web.Application()
     
-    # Cancel all running tasks
+    # Initialize and store database
+    db = Database(Config.MONGO_URI)
+    await db.connect()
+    app['db'] = db
+
+    # Initialize and store bot
+    bot = TelegramBot(db=db)
+    await bot.start()
+    app['bot'] = bot
+
+    # Setup web routes
+    await create_app(app)
+
+    return app
+
+async def shutdown(sig, loop, app):
+    """Graceful shutdown handler"""
+    logger.info(f"Received {sig.name}, shutting down...")
+
     tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     for task in tasks:
         task.cancel()
-    
+
     await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Stop components
+
     if 'bot' in app:
         await app['bot'].stop()
     if 'db' in app:
         await app['db'].close()
-    
-    loop.stop()
 
-async def init_app():
-    """Initialize application components"""
-    Config.validate()
-    
-    db = Database(Config.MONGO_URI, Config.MONGO_DB)
-    await db.initialize()
-    
-    bot = TelegramBot(db)
-    await bot.initialize()
-    
-    return create_app(db, bot)
+    loop.stop()
 
 def main():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
+
     try:
         app = loop.run_until_complete(init_app())
-        
-        # FIXED: Properly closed parentheses for add_signal_handler
+
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(
                 sig,
                 lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
-        
+            )
+
         web.run_app(
             app,
             host=Config.HOST,
