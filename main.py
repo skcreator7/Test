@@ -56,11 +56,12 @@ def main():
     asyncio.set_event_loop(loop)
     app = loop.run_until_complete(init_app())
     
-    # Handle signals
+    # Handle signals - FIXED THIS SECTION
     for sig in (signal.SIGTERM, signal.SIGINT):
         loop.add_signal_handler(
             sig, 
             lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
+        )
     
     try:
         web.run_app(
