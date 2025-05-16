@@ -6,10 +6,12 @@ from database import Database
 from config import Config
 import logging
 import signal
+from datetime import datetime
 
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
 )
 logger = logging.getLogger(__name__)
 
@@ -28,7 +30,7 @@ async def on_shutdown(app: web.Application):
 async def init_app():
     """Initialize application components"""
     # Validate config first
-    Config.validate()
+    Config.validate_config()
     
     # Initialize database
     db = Database(Config.MONGO_URI, Config.MONGO_DB)
