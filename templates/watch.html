@@ -1,29 +1,264 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>{{ title }} - {{ query if query else 'Movie Search' }}</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Links - {{post.chat_title if post else 'Post'}}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        .movie-post { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
-        .movie-title { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
-        .movie-content { white-space: pre-line; }
-        .movie-meta { color: #666; margin-top: 10px; font-size: 0.9em; }
+        :root {
+            --primary: #6c5ce7;
+            --secondary: #a29bfe;
+            --dark: #2d3436;
+            --light: #f5f6fa;
+            --success: #00b894;
+            --danger: #d63031;
+            --warning: #fdcb6e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Poppins', sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(to right, var(--primary), var(--secondary));
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 1.8rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+        
+        .header .meta {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            font-size: 0.9rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 2rem;
+        }
+        
+        .post-text {
+            background: var(--light);
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-bottom: 2rem;
+            white-space: pre-wrap;
+            font-size: 0.95rem;
+            line-height: 1.6;
+            border-left: 4px solid var(--primary);
+        }
+        
+        .links-container {
+            margin-top: 1.5rem;
+        }
+        
+        .links-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+        
+        .links-header h2 {
+            color: var(--dark);
+            font-size: 1.4rem;
+        }
+        
+        .links-count {
+            background: var(--primary);
+            color: white;
+            padding: 0.3rem 0.8rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+        
+        .link-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.2rem;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s ease;
+            border: 1px solid #eee;
+        }
+        
+        .link-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border-color: var(--secondary);
+        }
+        
+        .quality-badge {
+            display: inline-block;
+            padding: 0.3rem 0.8rem;
+            border-radius: 5px;
+            font-size: 0.8rem;
+            font-weight: 600;
+            margin-bottom: 0.8rem;
+        }
+        
+        .quality-480p { background: #74b9ff; color: white; }
+        .quality-720p { background: #0984e3; color: white; }
+        .quality-720p-HEVC { background: #00cec9; color: white; }
+        .quality-1080p { background: #6c5ce7; color: white; }
+        .quality-4K-UHD { background: #a29bfe; color: white; }
+        .quality-Episode { background: #fd79a8; color: white; }
+        
+        .link-url {
+            color: var(--dark);
+            font-size: 0.9rem;
+            word-break: break-all;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        
+        .link-host {
+            font-size: 0.8rem;
+            color: #636e72;
+            display: flex;
+            align-items: center;
+        }
+        
+        .link-host:before {
+            content: "🌐";
+            margin-right: 5px;
+        }
+        
+        .btn {
+            display: inline-block;
+            padding: 0.6rem 1.2rem;
+            background: var(--primary);
+            color: white;
+            border-radius: 5px;
+            text-decoration: none;
+            font-weight: 500;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .btn:hover {
+            background: var(--secondary);
+            transform: translateY(-2px);
+        }
+        
+        .error-box {
+            background: #ffecec;
+            border-left: 4px solid var(--danger);
+            padding: 1.5rem;
+            border-radius: 5px;
+            margin-bottom: 1.5rem;
+            color: var(--danger);
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 2rem;
+            color: var(--dark);
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 1rem;
+            }
+            
+            .links-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <h1>Movie Search</h1>
-    
-    {% if post %}
-        <div class="movie-post">
-            <div class="movie-title">{{ post.text.split('\n')[0] }}</div>
-            <div class="movie-content">{{ post.text }}</div>
-            <div class="movie-meta">
-                From: {{ post.chat_title }} | 
-                Date: {{ post.date.strftime('%Y-%m-%d %H:%M') }}
+    <div class="container">
+        <div class="header">
+            <h1>🎬 {{post.chat_title if post else 'Stream Links'}}</h1>
+            {% if post %}
+            <div class="meta">
+                <span>📅 {{post.date.strftime('%d %b %Y') if post.date else 'N/A'}}</span>
+                <span>🆔 {{post.message_id}}</span>
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="content">
+            {% if error %}
+                <div class="error-box">
+                    ⚠️ {{error}}
+                </div>
+            {% endif %}
+            
+            {% if post and post.text %}
+                <div class="post-text">
+                    {{post.text}}
+                </div>
+            {% endif %}
+            
+            <div class="links-container">
+                <div class="links-header">
+                    <h2>🔗 Available Links</h2>
+                    <span class="links-count">{{link_count}} links</span>
+                </div>
+                
+                {% if links %}
+                    <div class="links-grid">
+                        {% for link in links %}
+                            <div class="link-card">
+                                <span class="quality-badge quality-{{link.label.replace(' ', '-')}}">
+                                    {{link.label}}
+                                </span>
+                                <a href="{{link.url}}" target="_blank" class="link-url">
+                                    {{link.url|truncate(50)}}
+                                </a>
+                                {% if link.host %}
+                                    <span class="link-host">{{link.host}}</span>
+                                {% endif %}
+                                <a href="{{link.url}}" target="_blank" class="btn">
+                                    Open Link ➔
+                                </a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                {% else %}
+                    <div class="loading">
+                        <p>No streaming links found in this post</p>
+                        <p>Try another post or check back later</p>
+                    </div>
+                {% endif %}
             </div>
         </div>
-    {% else %}
-        <p>No movie found or invalid link</p>
-    {% endif %}
+    </div>
 </body>
 </html>
