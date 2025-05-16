@@ -1,6 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import TEXT, DESCENDING
 import logging
+import asyncio  # Added missing import
 from typing import List, Dict, Optional, Any
 from bson import ObjectId
 from config import Config
@@ -16,24 +17,37 @@ class Database:
         )
         self.db = self.client[db_name]
         self.posts = self.db.posts
+        self._initialized = False
 
     async def initialize(self) -> None:
-        """Create indexes"""
+        """Create indexes if not already initialized"""
+        if self._initialized:
+            return
+            
         try:
+            # Test connection first
+            await self.client.admin.command('ping')
+            
+            # Create indexes in parallel
             await asyncio.gather(
                 self.posts.create_index([("text", TEXT)]),
                 self.posts.create_index([("message_id", DESCENDING)]),
-                self.posts.create_index([("chat_id", DESCENDING)])
+                self.posts.create_index([("chat_id", DESCENDING)]),
+                self.posts.create_index([("date", DESCENDING)])
             )
-            logger.info("Database indexes created")
+            self._initialized = True
+            logger.info("Database initialized with indexes")
         except Exception as e:
-            logger.error(f"Index creation failed: {e}")
+            logger.error(f"Database initialization failed: {e}")
             raise
 
     async def save_post(self, post_data: Dict[str, Any]) -> bool:
-        """Upsert a post"""
+        """Upsert a post with timestamp"""
         try:
-            await self.posts.update_one(
+            if 'created_at' not in post_data:
+                post_data['created_at'] = datetime.utcnow()
+                
+            result = await self.posts.update_one(
                 {
                     "message_id": post_data["message_id"],
                     "chat_id": post_data["chat_id"]
@@ -41,23 +55,15 @@ class Database:
                 {"$set": post_data},
                 upsert=True
             )
-            return True
+            return result.acknowledged
         except Exception as e:
-            logger.error(f"Save post error: {e}")
+            logger.error(f"Failed to save post: {e}")
             return False
 
-    async def search_posts(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
-        """Search posts with text matching"""
-        try:
-            cursor = self.posts.find(
-                {"$text": {"$search": query}},
-                {"score": {"$meta": "textScore"}}
-            ).sort([("score", {"$meta": "textScore"})]).limit(limit)
-            return await cursor.to_list(length=limit)
-        except Exception as e:
-            logger.error(f"Search error: {e}")
-            return []
-
     async def close(self) -> None:
-        """Close connections"""
-        self.client.close()
+        """Close connection safely"""
+        try:
+            self.client.close()
+            logger.info("Database connection closed")
+        except Exception as e:
+            logger.error(f"Error closing database: {e}")
