@@ -8,20 +8,17 @@ logger = logging.getLogger(__name__)
 
 def setup_routes(app):
     """Setup all web routes"""
-    router = app.router
     
-    @router.get('/')
     @template('watch.html')
     async def index(request):
         return {'title': 'Telegram Posts Monitor'}
-
-    @router.get('/watch')
+    
     @template('watch.html')
     async def search(request):
+        db = request.app['db']
         query = request.query.get('q', '')
         message_id = request.query.get('message_id', '')
         
-        db = request.app['db']
         results = []
         if query:
             results = await db.search_posts(query, limit=20)
@@ -31,9 +28,9 @@ def setup_routes(app):
             'results': results,
             'highlight_id': int(message_id) if message_id.isdigit() else None
         }
-
-    @router.post('/watch')
+    
     async def watch_channel(request):
+        db = request.app['db']
         data = await request.post()
         chat_id = data.get('chat_id')
         try:
@@ -43,6 +40,11 @@ def setup_routes(app):
             return web.json_response({'status': 'exists'})
         except ValueError:
             return web.json_response({'error': 'Invalid chat ID'}, status=400)
+
+    # Add routes directly to the app router
+    app.router.add_get('/', index)
+    app.router.add_get('/watch', search)
+    app.router.add_post('/watch', watch_channel)
 
 def create_app(db, bot):
     """Create and configure the web application"""
