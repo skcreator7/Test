@@ -1,94 +1,48 @@
 import asyncio
-from aiohttp import web
-from web import create_app
-from telegram_bot import TelegramBot
-from database import Database
-from config import Config
 import logging
-import signal
+from pyrogram import Client
+from motor.motor_asyncio import AsyncIOMotorClient
+from web import create_app
+from bot import TelegramBot
+from aiohttp import web
+import os
 
-# Enhanced logging configuration
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+# Logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def shutdown(signal, loop, app):
-    """Enhanced shutdown handler"""
-    logger.info(f"Received {signal.name}, initiating shutdown...")
-    
-    # Cancel all running tasks
-    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
-    logger.info(f"Cancelling {len(tasks)} outstanding tasks")
-    for task in tasks:
-        task.cancel()
-    
-    await asyncio.gather(*tasks, return_exceptions=True)
-    
-    # Stop components
-    if 'bot' in app:
-        logger.info("Stopping Telegram bot...")
-        await app['bot'].stop()
-    
-    if 'db' in app:
-        logger.info("Closing database connection...")
-        await app['db'].close()
-    
-    loop.stop()
-    logger.info("Shutdown complete")
+# Environment Variables
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+MONGO_URL = os.getenv("MONGO_URL")
+BASE_URL = os.getenv("BASE_URL", "https://your-koyeb-url.koyeb.app")
 
-async def init_app():
-    """Initialize all components with error handling"""
-    try:
-        logger.info("Validating configuration...")
-        Config.validate()
-        
-        logger.info("Initializing database...")
-        db = Database(Config.MONGO_URI, Config.MONGO_DB)
-        await db.initialize()
-        
-        logger.info("Starting Telegram bot...")
-        bot = TelegramBot(db)
-        await bot.initialize()
-        
-        logger.info("Creating web application...")
-        app = create_app(db, bot)
-        
-        return app
-    except Exception as e:
-        logger.critical(f"Initialization failed: {str(e)}")
-        raise
+# MongoDB
+mongo_client = AsyncIOMotorClient(MONGO_URL)
+db = mongo_client["telegram_stream_bot"]
 
-def main():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    
-    try:
-        logger.info("Starting application initialization...")
-        app = loop.run_until_complete(init_app())
-        
-        # Signal handling
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(
-                sig,
-                lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
-            )
-        
-        logger.info(f"Starting web server on {Config.HOST}:{Config.PORT}")
-        web.run_app(
-            app,
-            host=Config.HOST,
-            port=Config.PORT,
-            access_log=logger,
-            shutdown_timeout=5.0
-        )
-    except Exception as e:
-        logger.critical(f"Application failed: {str(e)}")
-    finally:
-        loop.close()
-        logger.info("Application fully stopped")
+# Pyrogram Bot Client
+bot_client = Client("bot", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+
+
+async def main():
+    await bot_client.start()
+
+    # Create bot logic
+    telegram_bot = TelegramBot(bot_client, db)
+
+    # Start web server
+    app = create_app(db, telegram_bot)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, "0.0.0.0", 8080)
+    await site.start()
+
+    logger.info("Bot and web server running at http://0.0.0.0:8080")
+
+    await asyncio.Event().wait()  # Keep running
+
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
