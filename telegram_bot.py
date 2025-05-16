@@ -1,5 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message
+from config import Config  # Added missing import
 import logging
 from typing import Optional
 
