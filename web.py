@@ -5,7 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-def create_app(db, bot):  # Now accepts both db and bot parameters
+def create_app(db, bot):
     """Application factory"""
     app = web.Application()
     
