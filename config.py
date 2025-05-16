@@ -8,7 +8,7 @@ class Config:
     API_HASH = os.getenv("API_HASH")
     SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID", 0))
     MONGO_URI = os.getenv("MONGO_URI")
-    BASE_URL = os.getenv("BASE_URL")
+    BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")  # Added default
     
     # Optional Configuration with Defaults
     ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
@@ -19,7 +19,6 @@ class Config:
 
     @classmethod
     def validate(cls):
-        """Validate all required configuration values"""
         required = {
             'BOT_TOKEN': str,
             'API_ID': int,
