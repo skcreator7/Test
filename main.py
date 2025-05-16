@@ -1,60 +1,50 @@
 import asyncio
 from aiohttp import web
-from config import Config
-from database import Database
 from telegram_bot import TelegramBot
-from web import health_check
+from database import Database
+from web import setup_routes
+import logging
+from config import Config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 async def start_bot(db):
-    """Initialize and start bot with connection handling"""
     bot = TelegramBot(db)
-    await bot.start()
+    if not await bot.start():
+        raise RuntimeError("Failed to start Telegram bot")
     return bot
 
 async def start_app():
-    # Validate config first
-    Config.validate()
-    print("✅ Config validated")
-
-    # Initialize DB
-    db = Database()
-    await db.init_db()
-    print("✅ Database initialized")
-
-    # Start bot
+    # Initialize components
+    db = Database(Config.MONGO_URI)
+    await db.initialize()
+    
     bot = await start_bot(db)
-    print("✅ Bot started")
-
-    # Setup web app
+    
+    # Create web application
     app = web.Application()
-    app.add_routes([web.get('/health', health_check)])
-    app['db'] = db
-    app['bot'] = bot
-
-    async def on_shutdown(app):
-        print("🛑 Starting shutdown sequence...")
-        try:
-            await bot.stop()
-            print("✅ Bot stopped")
-        except Exception as e:
-            print(f"⚠️ Error stopping bot: {e}")
-        
-        try:
-            await db.close()
-            print("✅ Database connection closed")
-        except Exception as e:
-            print(f"⚠️ Error closing database: {e}")
-        
-        print("🛑 Shutdown complete")
-
-    app.on_shutdown.append(on_shutdown)
+    setup_routes(app, db, bot)
+    
+    # Add health check endpoint
+    async def health_check(request):
+        return web.Response(text="OK")
+    
+    app.router.add_get('/health', health_check)
+    
     return app
 
+def main():
+    try:
+        web.run_app(
+            start_app(),
+            port=Config.PORT,
+            handle_signals=True,
+            shutdown_timeout=5.0
+        )
+    except Exception as e:
+        logger.error(f"Application failed: {str(e)}")
+        raise
+
 if __name__ == "__main__":
-    print("🚀 Starting application...")
-    web.run_app(
-        start_app(),
-        host=Config.HOST,
-        port=Config.PORT,
-        handle_signals=True  # Proper signal handling
-    )
+    main()
