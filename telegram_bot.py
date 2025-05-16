@@ -18,20 +18,27 @@ class TelegramBot:
             workers=Config.WORKERS
         )
         
-        # Register handlers
-        @self.app.on_message(filters.chat(Config.MONITORED_CHATS))
-        async def handle_message(client: Client, message: Message):
-            await self._handle_message(client, message)
-            
-        @self.app.on_message(filters.group & ~filters.service)
-        async def moderate_group(client: Client, message: Message):
-            await self._moderate_group(client, message)
-            
-        @self.app.on_message(filters.text & ~filters.command)
-        async def respond_to_search(client: Client, message: Message):
-            await self._respond_to_search(client, message)
+        # Register handlers using the decorator pattern
+        self.register_handlers()
 
-    async def _handle_message(self, client: Client, message: Message):
+    def register_handlers(self):
+        """Register all message handlers"""
+        
+        @self.app.on_message(filters.chat(Config.MONITORED_CHATS))
+        async def channel_handler(client: Client, message: Message):
+            await self.handle_message(client, message)
+        
+        @self.app.on_message(filters.group)
+        async def group_handler(client: Client, message: Message):
+            if not message.service:  # Equivalent to ~filters.service
+                await self.moderate_group(client, message)
+        
+        @self.app.on_message(filters.text)
+        async def text_handler(client: Client, message: Message):
+            if not message.command:  # Equivalent to ~filters.command
+                await self.respond_to_search(client, message)
+
+    async def handle_message(self, client: Client, message: Message):
         """Save channel posts to database"""
         try:
             post_data = {
@@ -46,7 +53,7 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error saving post: {e}")
 
-    async def _moderate_group(self, client: Client, message: Message):
+    async def moderate_group(self, client: Client, message: Message):
         """Delete messages containing links or mentions"""
         try:
             text = message.text or message.caption or ""
@@ -60,7 +67,7 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Moderation error: {e}")
 
-    async def _respond_to_search(self, client: Client, message: Message):
+    async def respond_to_search(self, client: Client, message: Message):
         """Respond to any text message with search results"""
         try:
             if message.from_user and message.from_user.is_self:
