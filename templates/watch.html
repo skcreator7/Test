@@ -1,118 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ title }}</title>
+    <title>{{ title }} - {{ query if query else 'Movie Search' }}</title>
     <style>
-        :root {
-            --primary: #0088cc;
-            --background: #f9f9f9;
-            --card-bg: #ffffff;
-        }
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 0;
-            padding: 20px;
-            background: var(--background);
-        }
-        .search-container {
-            max-width: 800px;
-            margin: 0 auto 30px;
-        }
-        .search-box {
-            display: flex;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        input[type="search"] {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px 0 0 4px;
-            font-size: 16px;
-        }
-        button {
-            background: var(--primary);
-            color: white;
-            border: none;
-            padding: 0 20px;
-            border-radius: 0 4px 4px 0;
-            cursor: pointer;
-        }
-        .results {
-            max-width: 800px;
-            margin: 0 auto;
-        }
-        .post-card {
-            background: var(--card-bg);
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 15px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-        .post-date {
-            color: #666;
-            font-size: 0.9em;
-        }
-        .watch-form {
-            margin-top: 30px;
-            padding: 20px;
-            background: var(--card-bg);
-            border-radius: 8px;
-        }
-        .highlighted-post {
-            border-left: 3px solid var(--primary);
-            padding-left: 10px;
-            background-color: rgba(0, 136, 204, 0.05);
-        }
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .movie-post { border: 1px solid #ddd; padding: 15px; margin-bottom: 20px; border-radius: 5px; }
+        .movie-title { font-size: 1.2em; font-weight: bold; margin-bottom: 10px; }
+        .movie-content { white-space: pre-line; }
+        .movie-meta { color: #666; margin-top: 10px; font-size: 0.9em; }
     </style>
 </head>
 <body>
-    <div class="search-container">
-        <form action="/watch" method="get" class="search-box">
-            <input type="search" name="q" value="{{ query }}" placeholder="Search saved posts...">
-            <button type="submit">Search</button>
-        </form>
-        
-        <div class="watch-form">
-            <h3>Add Channel to Watch</h3>
-            <form action="/watch" method="post">
-                <input type="text" name="chat_id" placeholder="Channel ID (e.g., -1001234567890)" required>
-                <button type="submit">Start Monitoring</button>
-            </form>
+    <h1>Movie Search</h1>
+    
+    {% if post %}
+        <div class="movie-post">
+            <div class="movie-title">{{ post.text.split('\n')[0] }}</div>
+            <div class="movie-content">{{ post.text }}</div>
+            <div class="movie-meta">
+                From: {{ post.chat_title }} | 
+                Date: {{ post.date.strftime('%Y-%m-%d %H:%M') }}
+            </div>
         </div>
-    </div>
-
-    <div class="results">
-        {% if query %}
-            <h3>Search Results for "{{ query }}"</h3>
-            {% if results %}
-                {% for post in results %}
-                    <div class="post-card" id="post-{{ post.message_id }}">
-                        <div class="post-text">{{ post.text|default('No text available')|truncate(200) }}</div>
-                        <div class="post-meta">
-                            <span class="post-date">{{ post.date.strftime('%Y-%m-%d %H:%M') }}</span>
-                            <span class="post-channel">{{ post.chat_title }}</span>
-                        </div>
-                    </div>
-                {% endfor %}
-            {% else %}
-                <p>No results found.</p>
-            {% endif %}
-        {% endif %}
-    </div>
-
-    <script>
-        // Scroll to highlighted post
-        {% if highlight_id %}
-            document.addEventListener('DOMContentLoaded', () => {
-                const element = document.getElementById('post-{{ highlight_id }}');
-                if (element) {
-                    element.scrollIntoView({ behavior: 'smooth' });
-                    element.classList.add('highlighted-post');
-                }
-            });
-        {% endif %}
-    </script>
+    {% else %}
+        <p>No movie found or invalid link</p>
+    {% endif %}
 </body>
 </html>
