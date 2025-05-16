@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Results</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Results for "{{ query }}"</h1>
+        {% if results %}
+        <div class="results">
+            {% for result in results %}
+            <div class="result-card">
+                <h3>{{ result.title }}</h3>
+                <p>{{ result.description|truncate(100) }}</p>
+                <a href="/watch?id={{ result._id }}">View Details</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>No results found</p>
+        {% endif %}
+    </div>
+</body>
+</html>
