@@ -1,9 +1,8 @@
+import asyncio
+import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import TEXT, DESCENDING
-import logging
-import asyncio  # Added missing import
-from typing import List, Dict, Optional, Any
-from bson import ObjectId
+from typing import List, Dict, Optional, Any  # Added type imports
 from config import Config
 
 logger = logging.getLogger(__name__)
