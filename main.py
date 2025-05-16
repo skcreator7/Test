@@ -11,64 +11,51 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 async def on_shutdown(app):
-    """Handle application shutdown"""
+    """Proper shutdown handling"""
     try:
         bot = app['bot']
         await bot.stop()
-        logger.info("Bot stopped successfully")
     except Exception as e:
-        logger.error(f"Error during shutdown: {e}")
+        logger.error(f"Shutdown error: {e}")
     finally:
         logger.info("Application shutdown complete")
 
 async def start_app():
-    """Initialize and return the web application"""
-    try:
-        # Initialize database
-        db = Database(Config.MONGO_URI)
-        await db.initialize()
-        logger.info("Database initialized successfully")
-
-        # Initialize and start bot
-        bot = TelegramBot(db)
-        await bot.start()
-        logger.info("Telegram bot started successfully")
-
-        # Create web application
-        app = create_app(db, bot)
-        app.on_shutdown.append(on_shutdown)
-        logger.info("Web application created successfully")
-
-        return app
-    except Exception as e:
-        logger.error(f"Application initialization failed: {e}")
-        raise
+    """Initialize application with proper event loop"""
+    db = Database(Config.MONGO_URI)
+    await db.initialize()
+    
+    bot = TelegramBot(db)
+    await bot.start()
+    
+    app = create_app(db, bot)
+    app.on_shutdown.append(on_shutdown)
+    return app
 
 def main():
-    """Main application entry point"""
+    """Main entry point with proper event loop handling"""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
     try:
-        # Create event loop
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-
         # Set up signal handlers
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(sig, loop.stop)
-
-        # Start application
+        
         app = loop.run_until_complete(start_app())
-
-        # Run web server
+        
+        # Run app with proper shutdown timeout
         web.run_app(
             app,
+            host=Config.HOST,
             port=Config.PORT,
             handle_signals=True,
-            shutdown_timeout=60.0
+            shutdown_timeout=5.0
         )
     except Exception as e:
         logger.error(f"Application failed: {e}")
-        raise
     finally:
+        loop.close()
         logger.info("Application stopped")
 
 if __name__ == "__main__":
