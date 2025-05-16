@@ -1,12 +1,12 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.raw.types import InputPeerChannel
+from typing import List, Dict, Optional, Any  # Added type imports
 from config import Config
 import asyncio
 import logging
 from urllib.parse import quote
 import re
-from typing import Optional, List, Dict, Any
 
 logger = logging.getLogger(__name__)
 
@@ -43,36 +43,6 @@ class TelegramBot:
         @self.app.on_message(filters.private & filters.text & ~filters.command)
         async def private_handler(client, message):
             await self._handle_private_message(client, message)
-
-    async def _get_channel_peer(self):
-        """Get channel peer using modern Pyrogram methods"""
-        if not self.channel_hash:
-            channel = await self.app.get_chat(Config.SOURCE_CHANNEL_ID)
-            self.channel_hash = channel.access_hash
-        return await self.app.resolve_peer(Config.SOURCE_CHANNEL_ID)
-
-    async def _search_channel(self, query: str) -> List[Dict[str, Any]]:
-        """Search in private channel"""
-        try:
-            messages = []
-            async for msg in self.app.search_messages(
-                chat_id=Config.SOURCE_CHANNEL_ID,
-                query=query,
-                limit=10
-            ):
-                post_data = {
-                    "chat_id": msg.chat.id,
-                    "message_id": msg.id,
-                    "text": msg.text or msg.caption or "",
-                    "date": msg.date,
-                    "chat_title": msg.chat.title
-                }
-                await self.db.save_post(post_data)
-                messages.append(post_data)
-            return messages
-        except Exception as e:
-            logger.error(f"Search error: {e}")
-            return []
 
     async def stop(self):
         """Stop the bot client"""
