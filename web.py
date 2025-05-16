@@ -24,4 +24,4 @@ def create_app(db, bot):
 
 @template('index.html')
 async def home(request):
-    return {"title": "Movie Bot"}
+    return {"title": "Movie Bot Home"}
