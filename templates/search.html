@@ -1,70 +1,20 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Search - {{ query }}</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {
-            background-color: #121212;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
-            padding: 20px;
-            text-align: center;
-        }
+{% extends "index.html" %}
 
-        h1 {
-            font-size: 1.5em;
-            margin-bottom: 10px;
-        }
-
-        form input[type="text"] {
-            width: 70%;
-            padding: 10px;
-            border-radius: 8px;
-            border: none;
-            margin-bottom: 20px;
-        }
-
-        .result-list {
-            display: flex;
-            flex-direction: column;
-            gap: 15px;
-            align-items: center;
-        }
-
-        .result-item {
-            background-color: #1f1f1f;
-            padding: 15px 20px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 600px;
-        }
-
-        .result-item a {
-            color: #00bfff;
-            font-weight: bold;
-            text-decoration: none;
-        }
-
-        .result-item a:hover {
-            text-decoration: underline;
-        }
-    </style>
-</head>
-<body>
-    <h1>Search Movies</h1>
-    <form action="/search" method="get">
-        <input type="text" name="q" placeholder="Enter movie title..." value="{{ query }}">
-    </form>
-
-    <div class="result-list">
-        {% for result in results %}
-            <div class="result-item">
-                <div>{{ result.title }}</div>
-                <a href="{{ result.url }}">Watch Now</a>
-            </div>
-        {% endfor %}
-    </div>
-</body>
-</html>
+{% block content %}
+    {% if query %}
+        <h2>Search Results for "{{ query }}"</h2>
+        {% if not posts %}
+            <p>No results found</p>
+        {% else %}
+            {% for post in posts %}
+                <div class="post">
+                    <div class="post-title">{{ post.title }}</div>
+                    <a href="/view/{{ post.id }}?q={{ query }}" class="quality-btn">View Details</a>
+                    {% if post.has_episodes %}
+                        <span>(Multiple Episodes)</span>
+                    {% endif %}
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endif %}
+{% endblock %}
