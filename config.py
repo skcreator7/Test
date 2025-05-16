@@ -1,8 +1,8 @@
 import os
-from typing import List
+from pyrogram import Client
 
 class Config:
-    # Required
+    # Required Configuration
     BOT_TOKEN = os.getenv("BOT_TOKEN")
     API_ID = int(os.getenv("API_ID"))
     API_HASH = os.getenv("API_HASH")
@@ -10,17 +10,24 @@ class Config:
     MONGO_URI = os.getenv("MONGO_URI")
     BASE_URL = os.getenv("BASE_URL")
     
-    # Optional with defaults
-    ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
+    # Optional Configuration with Defaults
+    ADMINS = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
     HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", "8000"))
-    MONGO_DB = os.getenv("MONGO_DB", "telegram_bot")
-    
-    # Private channels (add access hashes as needed)
-    PRIVATE_CHANNELS = {
-        int(SOURCE_CHANNEL_ID): "your_access_hash_here"  # Add more as needed
-    }
-    
+    MONGO_DB = os.getenv("MONGO_DB", "movie_bot")
+    WORKERS = int(os.getenv("WORKERS", "10"))
+
     @classmethod
-    def get_private_hash(cls, channel_id: int) -> str:
-        return cls.PRIVATE_CHANNELS.get(channel_id, "")
+    async def get_channel_hash(cls):
+        """Automatically fetch private channel hash"""
+        async with Client(
+            "temp_session",
+            api_id=cls.API_ID,
+            api_hash=cls.API_HASH,
+            bot_token=cls.BOT_TOKEN
+        ) as app:
+            try:
+                channel = await app.get_chat(cls.SOURCE_CHANNEL_ID)
+                return str(channel.access_hash)
+            except Exception as e:
+                raise ValueError(f"Failed to get channel hash: {e}")
