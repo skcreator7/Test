@@ -1,0 +1,32 @@
+{% extends "index.html" %}
+
+{% block content %}
+    <div class="post">
+        <h2>{{ title }}</h2>
+        
+        {% if links %}
+            <h3>Download Links:</h3>
+            {% for quality, url in links.items() %}
+                <a href="{{ url }}" class="quality-btn" target="_blank">{{ quality }}</a>
+            {% endfor %}
+        {% endif %}
+        
+        {% if episodes %}
+            <div class="episodes">
+                <h3>Episodes:</h3>
+                {% for ep_num, ep_links in episodes.items() %}
+                    <div class="episode">
+                        <h4>Episode {{ ep_num }}</h4>
+                        {% for quality, url in ep_links.items() %}
+                            <a href="{{ url }}" class="quality-btn" target="_blank">{{ quality }}</a>
+                        {% endfor %}
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+        
+        <div style="margin-top: 20px;">
+            <a href="/search?q={{ query }}" class="quality-btn">Back to Search</a>
+        </div>
+    </div>
+{% endblock %}
