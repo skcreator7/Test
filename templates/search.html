@@ -1,25 +1,70 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Search Results</title>
-    <link rel="stylesheet" href="/static/css/style.css">
+    <meta charset="UTF-8">
+    <title>Search - {{ query }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            background-color: #121212;
+            color: #ffffff;
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            text-align: center;
+        }
+
+        h1 {
+            font-size: 1.5em;
+            margin-bottom: 10px;
+        }
+
+        form input[type="text"] {
+            width: 70%;
+            padding: 10px;
+            border-radius: 8px;
+            border: none;
+            margin-bottom: 20px;
+        }
+
+        .result-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .result-item {
+            background-color: #1f1f1f;
+            padding: 15px 20px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+        }
+
+        .result-item a {
+            color: #00bfff;
+            font-weight: bold;
+            text-decoration: none;
+        }
+
+        .result-item a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Results for "{{ query }}"</h1>
-        {% if results %}
-        <div class="results">
-            {% for result in results %}
-            <div class="result-card">
-                <h3>{{ result.title }}</h3>
-                <p>{{ result.description|truncate(100) }}</p>
-                <a href="/watch?id={{ result._id }}">View Details</a>
+    <h1>Search Movies</h1>
+    <form action="/search" method="get">
+        <input type="text" name="q" placeholder="Enter movie title..." value="{{ query }}">
+    </form>
+
+    <div class="result-list">
+        {% for result in results %}
+            <div class="result-item">
+                <div>{{ result.title }}</div>
+                <a href="{{ result.url }}">Watch Now</a>
             </div>
-            {% endfor %}
-        </div>
-        {% else %}
-        <p>No results found</p>
-        {% endif %}
+        {% endfor %}
     </div>
 </body>
 </html>
