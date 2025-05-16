@@ -5,7 +5,8 @@ import logging
 import re
 import os
 from pathlib import Path
-from typing import List, Dict, Any, Optional  # Added type imports
+from typing import List, Dict, Any, Optional
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,7 @@ def extract_links(text: str) -> List[Dict[str, str]]:
                 'label': label
             })
     
-    return links[:15]  # Limit to 15 links
+    return links[:15]
 
 def create_app(db, bot) -> web.Application:
     """Application factory"""
