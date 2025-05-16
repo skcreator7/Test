@@ -8,12 +8,16 @@ class Config:
     WORKERS = int(os.getenv("WORKERS", 4))
     
     # MongoDB
-    MONGO_URI = os.getenv("MONGO_URI")
-    DB_NAME = os.getenv("DB_NAME", "telegram_bot")
+    MONGO_URI = os.getenv("MONGO_URI", "mongodb://localhost:27017")
+    DB_NAME = os.getenv("DB_NAME", "telegram_monitor")
     
     # Web
     PORT = int(os.getenv("PORT", 8000))
     BASE_URL = os.getenv("BASE_URL", "https://your-app-name.koyeb.app")
     
     # Monitoring
-    MONITORED_CHATS = [int(c) for c in os.getenv("MONITORED_CHATS", "").split(",") if c]
+    MONITORED_CHATS = [
+        int(chat_id) for chat_id in 
+        os.getenv("MONITORED_CHATS", "-1002193268219").split(",")
+        if chat_id.strip()
+    ]
