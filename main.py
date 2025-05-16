@@ -31,14 +31,13 @@ async def start_app():
 
         # Initialize and start bot
         bot = TelegramBot(db)
-        await bot.start()  # This now uses the properly implemented start() method
+        await bot.start()
         logger.info("Telegram bot started successfully")
 
         # Create web application
         app = create_app(db, bot)
-        app['db'] = db
-        app['bot'] = bot
         app.on_shutdown.append(on_shutdown)
+        logger.info("Web application created successfully")
 
         return app
     except Exception as e:
