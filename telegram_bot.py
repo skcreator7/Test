@@ -1,14 +1,14 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message
-from typing import List, Dict, Optional, Any
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from config import Config
-import asyncio
 import logging
+from database import Database
+from typing import List, Dict
 
 logger = logging.getLogger(__name__)
 
 class TelegramBot:
-    def __init__(self, db):
+    def __init__(self, db: Database):
         self.db = db
         self.app = Client(
             "movie_bot",
@@ -20,37 +20,50 @@ class TelegramBot:
         self._register_handlers()
 
     async def initialize(self):
-        """Initialize bot"""
         await self.app.start()
         logger.info("Bot initialized successfully")
         return self
 
     def _register_handlers(self):
-        # Fixed filter syntax - removed problematic ~ operator
+        @self.app.on_message(filters.command("start") & filters.private)
+        async def start_handler(client, message: Message):
+            await message.reply(
+                "🎬 Welcome to Movie Bot!\n\n"
+                "Use /search <query> to find movies\n"
+                "Use /latest to get recent updates"
+            )
+
+        @self.app.on_message(filters.command("search") & filters.private)
+        async def search_handler(client, message: Message):
+            query = " ".join(message.command[1:])
+            if not query:
+                await message.reply("Please provide a search term")
+                return
+            
+            results = await self._search_movies(query)
+            if results:
+                response = "🔍 Results:\n\n" + "\n".join(
+                    f"{i+1}. {res['title']}" for i, res in enumerate(results))
+                await message.reply(response)
+            else:
+                await message.reply("No results found")
+
         @self.app.on_message(filters.group & filters.text)
         async def group_handler(client, message: Message):
-            await self._handle_group_message(client, message)
-        
-        @self.app.on_message(filters.private & filters.text)
-        async def private_handler(client, message: Message):
-            await self._handle_private_message(client, message)
+            if message.text.startswith("!"):
+                await self._handle_group_command(message)
 
-    async def _handle_group_message(self, client, message: Message):
-        """Handle group messages"""
-        try:
-            logger.info(f"Group message from {message.chat.id}: {message.text}")
-            # Your group message handling logic here
-        except Exception as e:
-            logger.error(f"Error handling group message: {e}")
+    async def _search_movies(self, query: str) -> List[Dict]:
+        return await self.db.search_posts(query)
 
-    async def _handle_private_message(self, client, message: Message):
-        """Handle private messages"""
-        try:
-            logger.info(f"Private message from {message.from_user.id}: {message.text}")
-            # Your private message handling logic here
-        except Exception as e:
-            logger.error(f"Error handling private message: {e}")
+    async def _handle_group_command(self, message: Message):
+        cmd = message.text[1:].lower()
+        if cmd == "help":
+            await message.reply(
+                "📌 Group Commands:\n"
+                "!help - Show this help\n"
+                "!latest - Show recent movies"
+            )
 
     async def stop(self):
-        """Stop the bot client"""
         await self.app.stop()
