@@ -14,21 +14,28 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def on_shutdown(app: web.Application):
-    """Handle graceful shutdown"""
-    logger.info("Starting shutdown...")
-    try:
-        if 'bot' in app:
-            await app['bot'].stop()
-        if 'db' in app:
-            await app['db'].close()
-    except Exception as e:
-        logger.error(f"Shutdown error: {e}")
-    logger.info("Shutdown complete")
+async def shutdown(signal, loop, app):
+    """Cleanup tasks tied to the service's shutdown"""
+    logger.info(f"Received exit signal {signal.name}...")
+    
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    [task.cancel() for task in tasks]
+    
+    logger.info("Cancelling outstanding tasks")
+    await asyncio.gather(*tasks, return_exceptions=True)
+    
+    if 'bot' in app:
+        logger.info("Stopping bot...")
+        await app['bot'].stop()
+    
+    if 'db' in app:
+        logger.info("Closing database...")
+        await app['db'].close()
+    
+    loop.stop()
 
 async def init_app():
     """Initialize application components"""
-    # Validate config first
     Config.validate()
     
     # Initialize database
@@ -41,22 +48,21 @@ async def init_app():
     
     # Create web application
     app = create_app(db, bot)
-    app.on_shutdown.append(on_shutdown)
     
     return app
 
 def main():
-    """Entry point"""
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
+    app = loop.run_until_complete(init_app())
+    
+    # Handle signals
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        loop.add_signal_handler(
+            sig, 
+            lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
     
     try:
-        # Setup signal handlers
-        for sig in (signal.SIGTERM, signal.SIGINT):
-            loop.add_signal_handler(sig, loop.stop)
-        
-        # Initialize and run app
-        app = loop.run_until_complete(init_app())
         web.run_app(
             app,
             host=Config.HOST,
