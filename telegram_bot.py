@@ -1,15 +1,18 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from config import Config
+import asyncio
 import logging
 from urllib.parse import quote
 import re
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
 class TelegramBot:
     def __init__(self, db):
         self.db = db
+        self.start_time = datetime.now()
         self.app = Client(
             "my_bot",
             api_id=Config.API_ID,
@@ -18,27 +21,13 @@ class TelegramBot:
             workers=Config.WORKERS
         )
         
-        # Register handlers using the decorator pattern
-        self.register_handlers()
+        # Register handlers
+        self.app.on_message(filters.chat(Config.MONITORED_CHATS))(self.handle_channel_message)
+        self.app.on_message(filters.group)(self.handle_group_message)
+        self.app.on_message(filters.private)(self.handle_private_message)
+        self.app.on_message(filters.text & ~filters.command)(self.handle_search_request)
 
-    def register_handlers(self):
-        """Register all message handlers"""
-        
-        @self.app.on_message(filters.chat(Config.MONITORED_CHATS))
-        async def channel_handler(client: Client, message: Message):
-            await self.handle_message(client, message)
-        
-        @self.app.on_message(filters.group)
-        async def group_handler(client: Client, message: Message):
-            if not message.service:  # Equivalent to ~filters.service
-                await self.moderate_group(client, message)
-        
-        @self.app.on_message(filters.text)
-        async def text_handler(client: Client, message: Message):
-            if not message.command:  # Equivalent to ~filters.command
-                await self.respond_to_search(client, message)
-
-    async def handle_message(self, client: Client, message: Message):
+    async def handle_channel_message(self, client: Client, message: Message):
         """Save channel posts to database"""
         try:
             post_data = {
@@ -53,22 +42,33 @@ class TelegramBot:
         except Exception as e:
             logger.error(f"Error saving post: {e}")
 
-    async def moderate_group(self, client: Client, message: Message):
-        """Delete messages containing links or mentions"""
+    async def handle_group_message(self, client: Client, message: Message):
+        """Delete links/mentions immediately in groups"""
         try:
             text = message.text or message.caption or ""
             if re.search(r'https?://|@\w+', text):
                 await message.delete()
-                await client.send_message(
-                    chat_id=message.chat.id,
-                    text=f"@{message.from_user.username} Links/mentions not allowed!",
+                reply = await message.reply(
+                    f"@{message.from_user.username} Links/mentions not allowed!",
                     reply_to_message_id=message.id
                 )
+                await asyncio.sleep(180)
+                await reply.delete()
         except Exception as e:
-            logger.error(f"Moderation error: {e}")
+            logger.error(f"Group moderation error: {e}")
 
-    async def respond_to_search(self, client: Client, message: Message):
-        """Respond to any text message with search results"""
+    async def handle_private_message(self, client: Client, message: Message):
+        """Auto-delete all private messages after 3 minutes"""
+        try:
+            reply = await message.reply("This message will self-destruct in 3 minutes ⏳")
+            await asyncio.sleep(180)
+            await message.delete()
+            await reply.delete()
+        except Exception as e:
+            logger.error(f"Private message error: {e}")
+
+    async def handle_search_request(self, client: Client, message: Message):
+        """Handle search requests"""
         try:
             if message.from_user and message.from_user.is_self:
                 return
@@ -89,22 +89,22 @@ class TelegramBot:
                 response += f"▶️ [{title}]({base_url}#{post['message_id']})\n"
                 response += f"   - {post.get('chat_title', 'Unknown')}\n\n"
             
-            await message.reply(
+            sent_msg = await message.reply(
                 response,
                 reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton("View All Results", url=base_url)
                 ]]),
                 disable_web_page_preview=True
             )
+            await asyncio.sleep(180)
+            await sent_msg.delete()
         except Exception as e:
             logger.error(f"Search response error: {e}")
 
     async def start(self):
-        """Start the bot"""
         await self.app.start()
-        logger.info("Bot started")
+        logger.info("Bot started with auto-delete features")
 
     async def stop(self):
-        """Stop the bot"""
         await self.app.stop()
         logger.info("Bot stopped")
