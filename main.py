@@ -14,8 +14,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def shutdown(signal, app):
-    logger.info(f"Shutting down...")
+async def startup(app):
+    # Start Telegram bot
+    await app['bot'].start()
+
+async def shutdown(app):
+    logger.info("Shutting down...")
     if 'bot' in app:
         await app['bot'].stop()
     if 'db' in app:
@@ -25,22 +29,18 @@ async def shutdown(signal, app):
 
 async def init_app():
     Config.validate()
-    
     db = Database(Config.MONGO_URI, Config.MONGO_DB)
     await db.initialize()
-    
     bot = TelegramBot(db)
-    await bot.client.connect()
-    
+    await bot.client.connect()  # If your TelegramBot's start method covers this, you can skip it
     app = create_app(db, bot)
-    app.on_shutdown.append(lambda app: shutdown(signal.SIGTERM, app))
-    
+    app.on_startup.append(startup)
+    app.on_shutdown.append(shutdown)
     return app
 
 def main():
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
-    
     try:
         app = loop.run_until_complete(init_app())
         web.run_app(
