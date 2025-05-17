@@ -63,10 +63,12 @@ def main():
         logger.info("Starting application initialization...")
         app = loop.run_until_complete(init_app())
         
+        # Fixed signal handler with proper parentheses
         for sig in (signal.SIGTERM, signal.SIGINT):
             loop.add_signal_handler(
                 sig,
                 lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
+            )
         
         logger.info(f"Starting web server on {Config.HOST}:{Config.PORT}")
         web.run_app(
