@@ -17,15 +17,19 @@ class Config:
     MONGO_DB = os.getenv("MONGO_DB", "movie_bot")
     WORKERS = int(os.getenv("WORKERS", "4"))
     
+    # Social Links
+    TELEGRAM_CHANNEL = os.getenv("TELEGRAM_CHANNEL", "https://t.me/example")
+    WHATSAPP_CHANNEL = os.getenv("WHATSAPP_CHANNEL", "https://whatsapp.com/example")
+    
     # Channel Info Cache
     CHANNEL_INFO = {}
 
     @classmethod
-    async def update_channel_info(cls, bot):
-        chat = await bot.get_chat(cls.SOURCE_CHANNEL_ID)
+    async def update_channel_info(cls, client):
+        chat = await client.get_entity(cls.SOURCE_CHANNEL_ID)
         cls.CHANNEL_INFO = {
             'id': chat.id,
-            'access_hash': chat.access_hash,
+            'access_hash': chat.access_hash if hasattr(chat, 'access_hash') else 0,
             'title': chat.title
         }
 
