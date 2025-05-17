@@ -1,6 +1,7 @@
 from aiohttp import web
 from aiohttp_jinja2 import template, setup as setup_jinja2
 from jinja2 import FileSystemLoader
+from bson import ObjectId
 import logging
 
 logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ async def home(request):
 @template('search.html')
 async def search(request):
     query = request.query.get('q', '')
-    results = await request.app['db'].search_posts(query)
+    results = await request.app['db'].search_posts(query) if query else []
     return {
         "query": query,
         "results": results
@@ -41,7 +42,7 @@ async def search(request):
 async def watch(request):
     post_id = request.query.get('id')
     if not post_id:
-        return web.HTTPFound('/')
+        raise web.HTTPFound('/')
     
     post = await request.app['db'].posts.find_one({'_id': ObjectId(post_id)})
     return {
