@@ -51,6 +51,7 @@ async def init_app():
         sys.exit(1)
 
 def main():
+    # Create the event loop here and ensure all resources (DB, Pyrogram etc) are created WITHIN this loop.
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     try:
