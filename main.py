@@ -34,20 +34,9 @@ async def init_app():
     return app
 
 def main():
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    try:
-        app = loop.run_until_complete(init_app())
-        web.run_app(
-            app,
-            host=Config.HOST,
-            port=Config.PORT,
-            access_log=None
-        )
-    except Exception as e:
-        logger.critical(f"Failed to start: {e}")
-    finally:
-        loop.close()
+    # SINGLE event loop, don't create new_event_loop
+    app = asyncio.get_event_loop().run_until_complete(init_app())
+    web.run_app(app, host=Config.HOST, port=Config.PORT, access_log=None)
 
 if __name__ == "__main__":
     main()
