@@ -8,7 +8,7 @@ class Config:
     API_HASH = os.getenv("API_HASH")
     SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID", 0))
     MONGO_URI = os.getenv("MONGO_URI")
-    BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")  # Added default
+    BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
     
     # Optional Configuration with Defaults
     ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
@@ -16,6 +16,18 @@ class Config:
     PORT = int(os.getenv("PORT", "8000"))
     MONGO_DB = os.getenv("MONGO_DB", "movie_bot")
     WORKERS = int(os.getenv("WORKERS", "4"))
+    
+    # Channel Info Cache
+    CHANNEL_INFO = {}
+
+    @classmethod
+    async def update_channel_info(cls, bot):
+        chat = await bot.get_chat(cls.SOURCE_CHANNEL_ID)
+        cls.CHANNEL_INFO = {
+            'id': chat.id,
+            'access_hash': chat.access_hash,
+            'title': chat.title
+        }
 
     @classmethod
     def validate(cls):
