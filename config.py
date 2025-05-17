@@ -9,6 +9,13 @@ class Config:
     MONGO_URI = os.getenv("MONGO_URI")
     BASE_URL = os.getenv("BASE_URL")
 
+    # Private Channel IDs to restrict search (add your private channel IDs here)
+    CHANNEL_IDS = [
+        -1002024811395,   # Example: Replace with your private channel IDs
+        -1002690734110
+        # Add more as needed
+    ]
+
     # Optional Configuration with Defaults
     ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
     HOST = os.getenv("HOST", "0.0.0.0")
