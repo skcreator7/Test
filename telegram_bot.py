@@ -1,7 +1,6 @@
 import logging
 import os
 from pyrogram import Client
-from pyrogram.sessions import StringSession
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -20,7 +19,7 @@ class TelegramBot:
         if self.mode == "user":
             logger.info("Initializing Telegram in USER mode")
             self.client = Client(
-                session_name=StringSession(self.user_session),
+                session_name=self.user_session,  # <-- Directly the session string
                 api_id=self.api_id,
                 api_hash=self.api_hash,
                 in_memory=True
