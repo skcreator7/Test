@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ title or "Movie Search" }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="{{ app.router['static'].url_for(filename='style.css') }}">
+    <link rel="icon" href="{{ app.router['static'].url_for(filename='logo.png') }}">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <img src="{{ app.router['static'].url_for(filename='logo.png') }}" alt="Logo" class="logo">
+            <span class="site-title">SK4FILM</span>
+        </div>
+        <div class="header-right">
+            <a href="https://wa.me/XXXXXXXXXX" class="whatsapp-link" target="_blank" title="Join WhatsApp Channel">
+                <img src="{{ app.router['static'].url_for(filename='whatsapp.svg') }}" alt="WhatsApp" class="whatsapp-icon">
+                <span>Join Channel</span>
+            </a>
+        </div>
+    </header>
+    <main>
+        {% block content %}{% endblock %}
+    </main>
+    <footer>
+        <span>Made with ❤️ | &copy; {{ now().year }} SK4FILM</span>
+    </footer>
+</body>
+</html>
