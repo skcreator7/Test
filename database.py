@@ -1,5 +1,5 @@
 from motor.motor_asyncio import AsyncIOMotorClient
-from pymongo import TEXT, DESCENDING
+from pymongo import TEXT
 import logging
 from typing import List, Dict
 
@@ -13,12 +13,14 @@ class Database:
         logger.info(f"Connected to MongoDB: {db_name}")
 
     async def initialize(self):
-        """Create search indexes with conflict handling"""
+        """Create search indexes with error handling"""
         try:
-            # First drop existing text indexes if they exist
+            # Get current indexes
             current_indexes = await self.posts.index_information()
+            
+            # Drop existing text indexes if they exist
             for name, index in current_indexes.items():
-                if 'text' in index.get('key', {}).values():
+                if any('text' in str(field) for field in index.get('key', {}).values()):
                     logger.info(f"Dropping existing text index: {name}")
                     await self.posts.drop_index(name)
             
@@ -28,7 +30,6 @@ class Database:
             logger.info("Search indexes created successfully")
         except Exception as e:
             logger.error(f"Index creation failed: {e}")
-            # If we can't create the indexes, continue anyway
             logger.warning("Continuing without text indexes")
 
     async def search_posts(self, query: str, limit: int = 10) -> List[Dict]:
