@@ -5,7 +5,7 @@ from pyrogram import raw
 from config import Config
 import logging
 import re
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, AsyncGenerator
 
 logger = logging.getLogger(__name__)
 
