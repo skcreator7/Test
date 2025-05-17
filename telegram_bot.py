@@ -104,7 +104,6 @@ class TelegramBot:
                 if quality in first_result.get('links', {}):
                     buttons.append(
                         InlineKeyboardButton(quality, url=first_result['links'][quality])
-                    )
             
             # Add web view button
             buttons.append(InlineKeyboardButton("🌐 Web View", url=web_url))
