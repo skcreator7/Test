@@ -1,9 +1,8 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, InputPeerChannel
 from pyrogram.enums import ParseMode
 from config import Config
 import logging
-from typing import List, Dict, AsyncGenerator
 import re
 
 logger = logging.getLogger(__name__)
@@ -23,19 +22,24 @@ class TelegramBot:
     async def initialize(self):
         await self.app.start()
         me = await self.app.get_me()
+        await Config.update_channel_info(self.app)
         logger.info(f"Bot started as @{me.username}")
         return self
 
-    async def _search_channel_posts(self, query: str) -> AsyncGenerator[Message, None]:
+    async def _get_channel_peer(self):
+        return await self.db.get_channel_peer(self)
+
+    async def _search_channel_posts(self, query: str):
+        peer = await self._get_channel_peer()
         async for message in self.app.search_messages(
-            chat_id=Config.SOURCE_CHANNEL_ID,
+            chat_id=peer.channel_id,
             query=query,
             limit=20
         ):
             if message.text:
                 yield message
 
-    async def _parse_movie_post(self, text: str) -> Dict:
+    async def _parse_movie_post(self, text: str):
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         if not lines:
             return {}
@@ -44,14 +48,12 @@ class TelegramBot:
         
         current_episode = None
         for line in lines[1:]:
-            # Check for episode markers
             episode_match = re.match(r'^(Episode|EP)\s*(\d+)', line, re.IGNORECASE)
             if episode_match:
                 current_episode = episode_match.group(2)
                 movie['episodes'][current_episode] = {}
                 continue
                 
-            # Process quality links
             if '🎞️' in line and 'http' in line and 'youtube' not in line.lower():
                 parts = line.split(':', 1)
                 if len(parts) == 2:
@@ -65,7 +67,7 @@ class TelegramBot:
         
         return movie
 
-    async def _generate_web_link(self, post_id: int, query: str = "") -> str:
+    async def _generate_web_link(self, post_id: int, query: str = ""):
         return f"{Config.BASE_URL}/view/{post_id}?q={query}"
 
     def _register_handlers(self):
@@ -78,7 +80,7 @@ class TelegramBot:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-        @self.app.on_message(filters.text & filters.private & ~filters.create(lambda _, __, m: m.text.startswith('/')))
+        @self.app.on_message(filters.text & filters.private & ~filters.command)
         async def search_handler(client, message: Message):
             query = message.text.strip()
             if len(query) < 3:
@@ -94,22 +96,17 @@ class TelegramBot:
             if not results:
                 return await message.reply("No results found")
             
-            # Prepare buttons for first result
             first_result = results[0]
             buttons = []
             web_url = await self._generate_web_link(first_result['msg_id'], query)
             
-            # Add quality buttons (max 4)
             for quality in ['480p', '720p HEVC', '720p', '1080p']:
                 if quality in first_result.get('links', {}):
                     buttons.append(
                         InlineKeyboardButton(quality, url=first_result['links'][quality])
-                    )
             
-            # Add web view button
             buttons.append(InlineKeyboardButton("🌐 Web View", url=web_url))
             
-            # Add more results button if available
             if len(results) > 1:
                 buttons.append(
                     InlineKeyboardButton(
@@ -118,7 +115,6 @@ class TelegramBot:
                     )
                 )
             
-            # Organize buttons in 2x2 grid
             keyboard = InlineKeyboardMarkup([buttons[i:i+2] for i in range(0, len(buttons), 2)])
             
             await message.reply(
