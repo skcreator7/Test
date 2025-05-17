@@ -9,7 +9,10 @@ logger = logging.getLogger(__name__)
 
 def create_app(db, bot):
     app = web.Application()
-    setup_jinja2(app, loader=FileSystemLoader('templates'))
+    setup_jinja2(app, 
+        loader=FileSystemLoader('templates'),
+        context_processors=[lambda request: {'Config': Config}]
+    )
     
     app['db'] = db
     app['bot'] = bot
@@ -40,9 +43,9 @@ def create_app(db, bot):
 async def fetch_posts(bot, query: str = "", limit: int = 20):
     try:
         results = []
-        async for msg in bot.app.search_messages(
-            chat_id=Config.SOURCE_CHANNEL_ID,
-            query=query,
+        async for msg in bot.client.iter_messages(
+            Config.SOURCE_CHANNEL_ID,
+            search=query,
             limit=limit
         ):
             if msg.text:
@@ -118,9 +121,9 @@ async def view_post(request):
         post_id = int(request.match_info['post_id'])
         query = request.query.get('q', '')
         
-        msg = await request.app['bot'].app.get_messages(
+        msg = await request.app['bot'].client.get_messages(
             Config.SOURCE_CHANNEL_ID,
-            post_id
+            ids=post_id
         )
         
         if not msg.text:
