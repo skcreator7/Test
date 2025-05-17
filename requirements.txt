@@ -6,3 +6,4 @@ Pyrogram
 pymongo
 motor
 dnspython
+tgcrypto
