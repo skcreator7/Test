@@ -16,7 +16,7 @@ class TelegramBot:
             api_id=Config.API_ID,
             api_hash=Config.API_HASH,
             bot_token=Config.BOT_TOKEN,
-            workers=Config.WORKERS  # Fixed: removed ~ operator
+            workers=Config.WORKERS
         )
         self._register_handlers()
 
@@ -78,7 +78,7 @@ class TelegramBot:
                 parse_mode=ParseMode.MARKDOWN
             )
 
-        @self.app.on_message(filters.text & filters.private & ~filters.command)
+        @self.app.on_message(filters.text & filters.private & ~filters.create(lambda _, __, m: m.text.startswith('/')))
         async def search_handler(client, message: Message):
             query = message.text.strip()
             if len(query) < 3:
