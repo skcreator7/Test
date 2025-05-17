@@ -1,40 +1,94 @@
 import asyncio
-from telethon import TelegramClient
-from telethon.sessions import StringSession
-from config import Config
+from aiohttp import web
+from web import create_app
+from telegram_bot import TelegramBot
 from database import Database
+from config import Config
 import logging
+import signal
 
-logging.basicConfig(level=logging.INFO)
+# Enhanced logging configuration
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
 logger = logging.getLogger(__name__)
 
-async def scrape_new_posts_only(db):
-    # 1. Find the latest message _id in DB
-    last = await db.posts.find_one(sort=[("_id", -1)])  # Descending order
-    last_id = last["_id"] if last else 0
+async def shutdown(signal, loop, app):
+    """Enhanced shutdown handler"""
+    logger.info(f"Received {signal.name}, initiating shutdown...")
+    
+    # Cancel all running tasks
+    tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    logger.info(f"Cancelling {len(tasks)} outstanding tasks")
+    for task in tasks:
+        task.cancel()
+    
+    await asyncio.gather(*tasks, return_exceptions=True)
+    
+    # Stop components
+    if 'bot' in app:
+        logger.info("Stopping Telegram bot...")
+        await app['bot'].stop()
+    
+    if 'db' in app:
+        logger.info("Closing database connection...")
+        await app['db'].close()
+    
+    loop.stop()
+    logger.info("Shutdown complete")
 
-    logger.info(f"Last post ID in DB: {last_id}")
+async def init_app():
+    """Initialize all components with error handling"""
+    try:
+        logger.info("Validating configuration...")
+        Config.validate()
+        
+        logger.info("Initializing database...")
+        db = Database(Config.MONGO_URI, Config.MONGO_DB)
+        await db.initialize()
+        
+        logger.info("Starting Telegram bot...")
+        bot = TelegramBot(db)
+        await bot.initialize()
+        
+        logger.info("Creating web application...")
+        app = create_app(db, bot)
+        
+        return app
+    except Exception as e:
+        logger.critical(f"Initialization failed: {str(e)}")
+        raise
 
-    async with TelegramClient(StringSession(Config.STRING_SESSION), Config.API_ID, Config.API_HASH) as client:
-        # 2. Fetch only new messages (greater than last_id)
-        async for message in client.iter_messages(
-            Config.SOURCE_CHANNEL_ID,
-            min_id=last_id,
-            reverse=True
-        ):
-            if not message.text and not message.message:
-                continue
-            post = {
-                "_id": message.id,
-                "title": (message.text or message.message or "").split('\n')[0][:120],
-                "text": (message.text or message.message or ""),
-                "date": message.date,
-                "from_id": getattr(message.from_id, 'user_id', None)
-            }
-            # 3. Upsert: Insert if not exists, update if already present
-            await db.posts.update_one({"_id": post["_id"]}, {"$set": post}, upsert=True)
-            logger.info(f"Saved post: {post['_id']} - {post['title'][:40]}")
-    logger.info("Scraping completed: only new posts.")
+def main():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    
+    try:
+        logger.info("Starting application initialization...")
+        app = loop.run_until_complete(init_app())
+        
+        # Signal handling
+        for sig in (signal.SIGTERM, signal.SIGINT):
+            loop.add_signal_handler(
+                sig,
+                lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
+            )
+        
+        logger.info(f"Starting web server on {Config.HOST}:{Config.PORT}")
+        web.run_app(
+            app,
+            host=Config.HOST,
+            port=Config.PORT,
+            access_log=logger,
+            shutdown_timeout=5.0
+        )
+    except Exception as e:
+        logger.critical(f"Application failed: {str(e)}")
+    finally:
+        loop.close()
+        logger.info("Application fully stopped")
 
-# Example usage in your flow:
-# asyncio.run(scrape_new_posts_only(db))
+if __name__ == "__main__":
+    main()
