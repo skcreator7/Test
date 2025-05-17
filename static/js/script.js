@@ -1,13 +1,3 @@
-// Smooth scroll to links
-document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-  anchor.addEventListener('click', function (e) {
-    e.preventDefault();
-    document.querySelector(this.getAttribute('href')).scrollIntoView({
-      behavior: 'smooth'
-    });
-  });
-});
-
 // Copy link functionality
 document.querySelectorAll('.copy-btn').forEach(btn => {
   btn.addEventListener('click', async () => {
@@ -24,17 +14,21 @@ document.querySelectorAll('.copy-btn').forEach(btn => {
   });
 });
 
-// Lazy load images
-const lazyImages = document.querySelectorAll('img.lazy');
-const imageObserver = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      const img = entry.target;
-      img.src = img.dataset.src;
-      img.classList.remove('lazy');
-      imageObserver.unobserve(img);
-    }
-  });
-});
+// Notification system
+function showNotification(message, type = 'info') {
+  const notification = document.createElement('div');
+  notification.className = `notification ${type}`;
+  notification.textContent = message;
+  document.body.appendChild(notification);
+  
+  setTimeout(() => {
+    notification.classList.add('fade-out');
+    setTimeout(() => notification.remove(), 300);
+  }, 3000);
+}
 
-lazyImages.forEach(img => imageObserver.observe(img));
+// Error handling for failed API calls
+window.addEventListener('unhandledrejection', event => {
+  console.error('Unhandled rejection:', event.reason);
+  showNotification('An error occurred', 'error');
+});
