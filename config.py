@@ -8,7 +8,7 @@ class Config:
     API_HASH = os.getenv("API_HASH")
     MONGO_URI = os.getenv("MONGO_URI")
     BASE_URL = os.getenv("BASE_URL")
-    
+
     # Optional Configuration with Defaults
     ADMINS: List[int] = [int(x) for x in os.getenv("ADMINS", "").split(",") if x]
     HOST = os.getenv("HOST", "0.0.0.0")
@@ -27,14 +27,14 @@ class Config:
             'MONGO_URI': str,
             'BASE_URL': str
         }
-        
         errors = []
         for name, expected_type in required.items():
             value = getattr(cls, name)
             if not value:
                 errors.append(f"{name} is not set")
+            elif expected_type == int and isinstance(value, str) and value == "0":
+                errors.append(f"{name} should be {expected_type.__name__}, got {type(value).__name__} ('{value}')")
             elif not isinstance(value, expected_type):
                 errors.append(f"{name} should be {expected_type.__name__}, got {type(value).__name__}")
-        
         if errors:
             raise ValueError("Configuration errors:\n" + "\n".join(errors))
