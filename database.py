@@ -18,12 +18,9 @@ class Database:
     async def initialize(self):
         """Create indexes"""
         try:
-            # Search indexes for posts
             await self.posts.create_index([("title", TEXT)])
             await self.posts.create_index([("description", TEXT)])
             await self.posts.create_index([("channel_id", ASCENDING), ("message_id", ASCENDING)], unique=True)
-            
-            # Index for channels
             await self.channels.create_index([("channel_id", ASCENDING)], unique=True)
             logger.info("Database indexes created")
         except Exception as e:
@@ -50,20 +47,23 @@ class Database:
             upsert=True
         )
 
-    async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime, 
-                                         status: str, new_posts: int = 0, error: str = None):
+    async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime,
+                                           status: str, new_posts: int = 0, error: str = None):
         """Update channel scrape status"""
-        update_data = {
+        update_fields = {
             'last_scraped': last_scraped,
-            'scrape_status': status,
-            '$inc': {'post_count': new_posts}
+            'scrape_status': status
         }
         if error:
-            update_data['last_error'] = error
-            
+            update_fields['last_error'] = error
+
+        update_query = {'$set': update_fields}
+        if new_posts:
+            update_query['$inc'] = {'post_count': new_posts}
+
         await self.channels.update_one(
             {'channel_id': channel_id},
-            {'$set': update_data}
+            update_query
         )
 
     async def add_channel(self, channel_data: dict):
@@ -84,7 +84,7 @@ class Database:
             {'$text': {'$search': query}},
             {'score': {'$meta': 'textScore'}}
         ).sort([('score', {'$meta': 'textScore'}), ('date', DESCENDING)]).limit(limit)
-        
+
         return await cursor.to_list(length=limit)
 
     async def close(self):
