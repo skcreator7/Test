@@ -7,3 +7,4 @@ tgcrypto
 pymongo
 motor
 dnspython
+telethon
