@@ -46,28 +46,25 @@ async def home(request):
 async def search(request):
     query = request.query.get('q', '').strip()
     posts = []
-    async for msg in request.app['bot'].client.iter_messages(
-        Config.SOURCE_CHANNEL_ID,
-        search=query,
-        limit=20
-    ):
-        if msg.text:
-            post = await parse_post(msg.text)
-            post['id'] = msg.id
-            post['has_episodes'] = bool(post.get('episodes'))
-            posts.append(post)
+    db = request.app['db']
+    if query:
+        results = await db.search_posts(query, limit=20)
+        for post in results:
+            text = post.get('text', '')
+            parsed = await parse_post(text)
+            parsed['id'] = post['_id']
+            parsed['has_episodes'] = bool(parsed.get('episodes'))
+            posts.append(parsed)
     return {'query': query, 'posts': posts}
 
 @template('view.html')
 async def view_post(request):
     post_id = int(request.match_info['post_id'])
-    msg = await request.app['bot'].client.get_messages(
-        Config.SOURCE_CHANNEL_ID,
-        ids=post_id
-    )
-    if not msg.text:
+    db = request.app['db']
+    doc = await db.posts.find_one({'_id': post_id})
+    if not doc or not doc.get('text'):
         raise web.HTTPNotFound()
-    post = await parse_post(msg.text)
+    post = await parse_post(doc['text'])
     post['id'] = post_id
     post['query'] = request.query.get('q', '')
     return post
