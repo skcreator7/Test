@@ -3,6 +3,7 @@ import os
 class Config:
     API_ID = int(os.getenv("API_ID", 0))
     API_HASH = os.getenv("API_HASH", "")
+    BOT_TOKEN = os.getenv("BOT_TOKEN", "")  # <-- Added this line
     STRING_SESSION = os.getenv("STRING_SESSION", "")
     SOURCE_CHANNEL_ID = int(os.getenv("SOURCE_CHANNEL_ID", 0))
     BASE_URL = os.getenv("BASE_URL", "https://your-koyeb-app-url.com")
@@ -13,5 +14,5 @@ class Config:
 
     @staticmethod
     def validate():
-        assert Config.API_ID and Config.API_HASH and Config.STRING_SESSION and Config.SOURCE_CHANNEL_ID, "Missing Telegram config"
+        assert Config.API_ID and Config.API_HASH and Config.BOT_TOKEN and Config.STRING_SESSION and Config.SOURCE_CHANNEL_ID, "Missing Telegram config"
         assert Config.MONGO_URI and Config.MONGO_DB, "Missing Mongo config"
