@@ -18,16 +18,19 @@ class Database:
             # Get current indexes
             current_indexes = await self.posts.index_information()
             
-            # Drop existing text indexes if they exist
-            for name, index in current_indexes.items():
-                if any('text' in str(field) for field in index.get('key', {}).values()):
-                    logger.info(f"Dropping existing text index: {name}")
-                    await self.posts.drop_index(name)
+            # Check if text indexes already exist
+            text_index_exists = any(
+                any('text' in str(field) for field in index.get('key', []))
+                for index in current_indexes.values()
+            )
             
-            # Create new indexes
-            await self.posts.create_index([("title", TEXT)])
-            await self.posts.create_index([("text", TEXT)])
-            logger.info("Search indexes created successfully")
+            if not text_index_exists:
+                # Create new indexes only if they don't exist
+                await self.posts.create_index([("title", TEXT)])
+                await self.posts.create_index([("text", TEXT)])
+                logger.info("Search indexes created successfully")
+            else:
+                logger.info("Text indexes already exist")
         except Exception as e:
             logger.error(f"Index creation failed: {e}")
             logger.warning("Continuing without text indexes")
