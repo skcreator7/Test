@@ -18,8 +18,11 @@ class Database:
     async def initialize(self):
         """Create indexes"""
         try:
-            await self.posts.create_index([("title", TEXT)])
-            await self.posts.create_index([("description", TEXT)])
+            # Only one compound text index for both fields (MONGODB ALLOWS ONLY ONE TEXT INDEX PER COLLECTION)
+            await self.posts.create_index(
+                [("title", TEXT), ("description", TEXT)],
+                name="text_title_description"
+            )
             await self.posts.create_index([("channel_id", ASCENDING), ("message_id", ASCENDING)], unique=True)
             await self.channels.create_index([("channel_id", ASCENDING)], unique=True)
             logger.info("Database indexes created")
@@ -47,7 +50,7 @@ class Database:
             upsert=True
         )
 
-    async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime,
+    async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime, 
                                            status: str, new_posts: int = 0, error: str = None):
         """Update channel scrape status"""
         update_fields = {
