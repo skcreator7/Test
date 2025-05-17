@@ -1,38 +1,51 @@
 from aiohttp import web
-import jinja2
-import aiohttp_jinja2
+from aiohttp_jinja2 import template, setup as setup_jinja2
+from jinja2 import FileSystemLoader
+import logging
 
-def setup_static_routes(app):
-    app.router.add_static('/static/', path='static', name='static')
+logger = logging.getLogger(__name__)
 
-def create_app(db, bot=None):
+def create_app(db, bot):
+    """Application factory"""
     app = web.Application()
-    aiohttp_jinja2.setup(
-        app,
-        loader=jinja2.FileSystemLoader('templates'),
-        context_processors=[aiohttp_jinja2.request_processor]
-    )
-    setup_static_routes(app)
-
-    @aiohttp_jinja2.template('search.html')
-    async def search(request):
-        q = request.query.get('q', '').strip()
-        results = []
-        if q:
-            results = await db.search_posts(q)
-            # Direct post open if only one search result
-            if len(results) == 1:
-                raise web.HTTPFound(request.app.router['post_page'].url_for(id=str(results[0]['_id'])))
-        return {'results': results, 'title': 'Search', 'request': request}
-
-    @aiohttp_jinja2.template('post.html')
-    async def post_page(request):
-        post_id = request.match_info['id']
-        post = await db.posts.find_one({"_id": post_id})
-        if not post:
-            raise web.HTTPNotFound()
-        return {'post': post, 'title': post.get('title', ''), 'request': request}
-
-    app.router.add_get('/', search, name='search')
-    app.router.add_get('/post/{id}', post_page, name='post_page')
+    
+    # Setup templates
+    setup_jinja2(app, loader=FileSystemLoader('templates'))
+    
+    # Store dependencies
+    app['db'] = db
+    app['bot'] = bot
+    
+    # Setup routes
+    app.router.add_get('/', home)
+    app.router.add_get('/search', search)
+    app.router.add_get('/watch', watch)
+    app.router.add_static('/static/', path='static')
+    
     return app
+
+@template('index.html')
+async def home(request):
+    return {"title": "Movie Bot Home"}
+
+@template('search.html')
+async def search(request):
+    query = request.query.get('q', '')
+    results = await request.app['db'].search_posts(query)
+    return {
+        "query": query,
+        "results": results
+    }
+
+@template('watch.html')
+async def watch(request):
+    post_id = request.query.get('id')
+    if not post_id:
+        return web.HTTPFound('/')
+    
+    post = await request.app['db'].posts.find_one({'_id': ObjectId(post_id)})
+    return {
+        "post": post,
+        "links": post.get('links', []) if post else [],
+        "link_count": len(post.get('links', [])) if post else 0
+    }
