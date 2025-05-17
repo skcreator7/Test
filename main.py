@@ -1,42 +1,40 @@
 import asyncio
-from aiohttp import web
-from web import create_app
-from telegram_bot import TelegramBot
-from database import Database
+from telethon import TelegramClient
+from telethon.sessions import StringSession
 from config import Config
+from database import Database
 import logging
 
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def on_startup(app):
-    await app['bot'].start()
+async def scrape_new_posts_only(db):
+    # 1. Find the latest message _id in DB
+    last = await db.posts.find_one(sort=[("_id", -1)])  # Descending order
+    last_id = last["_id"] if last else 0
 
-async def on_shutdown(app):
-    logger.info("Shutting down...")
-    if 'bot' in app:
-        await app['bot'].stop()
-    if 'db' in app:
-        await app['db'].close()
+    logger.info(f"Last post ID in DB: {last_id}")
 
-async def init_app():
-    Config.validate()
-    db = Database(Config.MONGO_URI, Config.MONGO_DB)
-    await db.initialize()
-    bot = TelegramBot(db)
-    app = create_app(db, bot)
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-    return app
+    async with TelegramClient(StringSession(Config.STRING_SESSION), Config.API_ID, Config.API_HASH) as client:
+        # 2. Fetch only new messages (greater than last_id)
+        async for message in client.iter_messages(
+            Config.SOURCE_CHANNEL_ID,
+            min_id=last_id,
+            reverse=True
+        ):
+            if not message.text and not message.message:
+                continue
+            post = {
+                "_id": message.id,
+                "title": (message.text or message.message or "").split('\n')[0][:120],
+                "text": (message.text or message.message or ""),
+                "date": message.date,
+                "from_id": getattr(message.from_id, 'user_id', None)
+            }
+            # 3. Upsert: Insert if not exists, update if already present
+            await db.posts.update_one({"_id": post["_id"]}, {"$set": post}, upsert=True)
+            logger.info(f"Saved post: {post['_id']} - {post['title'][:40]}")
+    logger.info("Scraping completed: only new posts.")
 
-def main():
-    # SINGLE event loop, don't create new_event_loop
-    app = asyncio.get_event_loop().run_until_complete(init_app())
-    web.run_app(app, host=Config.HOST, port=Config.PORT, access_log=None)
-
-if __name__ == "__main__":
-    main()
+# Example usage in your flow:
+# asyncio.run(scrape_new_posts_only(db))
