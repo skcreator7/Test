@@ -216,7 +216,7 @@ class TelegramBot:
                 )
             await message.reply("\n\n".join(response))
 
-        # FIX: Exclude commands using regex (not filters.command)
+        # Exclude commands using regex (not filters.command)
         @self.bot_client.on_message(filters.text & filters.private & ~filters.regex(r"^/"))
         async def search_handler(client, message: Message):
             query = message.text.strip()
