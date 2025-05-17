@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>{{ title }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -26,13 +27,13 @@
 <body class="bg-gray-50">
     <header class="gradient-bg text-white shadow-lg">
         <div class="container mx-auto px-4 py-6">
-            <div class="flex justify-between items-center">
+            <div class="flex flex-col sm:flex-row justify-between items-center space-y-4 sm:space-y-0">
                 <h1 class="text-3xl font-bold">🎬 Movie Search</h1>
                 <div class="flex space-x-4">
-                    <a href="{{ Config.TELEGRAM_CHANNEL }}" class="social-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full flex items-center">
+                    <a href="{{ TELEGRAM_CHANNEL }}" class="social-btn bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full flex items-center">
                         <i class="fab fa-telegram mr-2"></i> Telegram
                     </a>
-                    <a href="{{ Config.WHATSAPP_CHANNEL }}" class="social-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full flex items-center">
+                    <a href="{{ WHATSAPP_CHANNEL }}" class="social-btn bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full flex items-center">
                         <i class="fab fa-whatsapp mr-2"></i> WhatsApp
                     </a>
                 </div>
@@ -61,12 +62,12 @@
 
     <footer class="bg-gray-800 text-white py-8">
         <div class="container mx-auto px-4 text-center">
-            <p>© 2023 Movie Search Bot. All rights reserved.</p>
+            <p>© 2025 Movie Search Bot. All rights reserved.</p>
             <div class="flex justify-center space-x-6 mt-4">
-                <a href="{{ Config.TELEGRAM_CHANNEL }}" class="text-blue-400 hover:text-blue-300">
+                <a href="{{ TELEGRAM_CHANNEL }}" class="text-blue-400 hover:text-blue-300">
                     <i class="fab fa-telegram fa-lg"></i>
                 </a>
-                <a href="{{ Config.WHATSAPP_CHANNEL }}" class="text-green-400 hover:text-green-300">
+                <a href="{{ WHATSAPP_CHANNEL }}" class="text-green-400 hover:text-green-300">
                     <i class="fab fa-whatsapp fa-lg"></i>
                 </a>
             </div>
