@@ -5,7 +5,6 @@ from telegram_bot import TelegramBot
 from database import Database
 from config import Config
 import logging
-import signal
 
 logging.basicConfig(
     level=logging.INFO,
@@ -14,28 +13,24 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def startup(app):
-    # Start Telegram bot
+async def on_startup(app):
     await app['bot'].start()
 
-async def shutdown(app):
+async def on_shutdown(app):
     logger.info("Shutting down...")
     if 'bot' in app:
         await app['bot'].stop()
     if 'db' in app:
         await app['db'].close()
-    await app.shutdown()
-    await app.cleanup()
 
 async def init_app():
     Config.validate()
     db = Database(Config.MONGO_URI, Config.MONGO_DB)
     await db.initialize()
     bot = TelegramBot(db)
-    await bot.client.connect()  # If your TelegramBot's start method covers this, you can skip it
     app = create_app(db, bot)
-    app.on_startup.append(startup)
-    app.on_shutdown.append(shutdown)
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
     return app
 
 def main():
