@@ -1,36 +1,53 @@
-{% extends "index.html" %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Search - {{ title or "Movie Search" }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+      html { scroll-behavior: smooth; }
+      .movie-card:hover {
+        transform: translateY(-5px) scale(1.03);
+        box-shadow: 0 8px 30px rgba(80,80,170,0.18);
+      }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100 min-h-screen">
+    <div class="container mx-auto px-2 sm:px-4 py-8">
+        <h1 class="text-3xl sm:text-4xl font-extrabold mb-6 text-center text-indigo-400 drop-shadow-lg tracking-wide">Movie Search</h1>
+        <form class="flex flex-col sm:flex-row justify-center mb-8 gap-3" method="get" action="/search">
+            <input
+                type="text"
+                name="q"
+                value="{{ query }}"
+                placeholder="Search movies, series, or anything..."
+                class="w-full sm:w-96 px-4 py-2 rounded-md bg-gray-800 text-gray-100 border-none focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow"
+            >
+            <button
+                type="submit"
+                class="w-full sm:w-auto px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md shadow transition"
+            >Search</button>
+        </form>
 
-{% block content %}
-    {% if query %}
-        <div class="mb-8">
-            <h2 class="text-2xl font-semibold text-gray-800 mb-4">Search Results for "{{ query }}"</h2>
-            
-            {% if not posts %}
-                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4" role="alert">
-                    <p>No results found for your search.</p>
+        {% if posts %}
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+                {% for post in posts %}
+                <div class="movie-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-xl p-6 hover:ring-2 hover:ring-indigo-500 transition transform duration-300">
+                    <h2 class="text-xl font-bold mb-2 text-indigo-300 truncate">{{ post.title }}</h2>
+                    {% if post.has_episodes %}
+                        <span class="inline-block bg-green-600/90 text-xs px-3 py-1 rounded-full mb-2 font-semibold tracking-wide">Episodes Available</span>
+                    {% endif %}
+                    <div class="flex justify-between items-center mt-4">
+                        <a href="/view/{{ post.id }}{% if query %}?q={{ query }}{% endif %}"
+                            class="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow font-semibold transition">View</a>
+                    </div>
                 </div>
-            {% else %}
-                <div class="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                    {% for post in posts %}
-                        <div class="movie-card bg-white rounded-lg shadow-md overflow-hidden">
-                            <div class="p-6">
-                                <h3 class="text-xl font-semibold text-gray-800 mb-2">{{ post.title }}</h3>
-                                <div class="flex flex-wrap gap-2 mt-4">
-                                    <a href="/view/{{ post.id }}?q={{ query }}" 
-                                        class="bg-purple-100 text-purple-800 px-3 py-1 rounded-full text-sm font-medium hover:bg-purple-200">
-                                        View Details
-                                    </a>
-                                    {% if post.has_episodes %}
-                                        <span class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium">
-                                            Multiple Episodes
-                                        </span>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                </div>
-            {% endif %}
-        </div>
-    {% endif %}
-{% endblock %}
+                {% endfor %}
+            </div>
+        {% elif query %}
+            <p class="text-center text-red-400 text-lg mt-10">No results found for "<span class="font-semibold">{{ query }}</span>"</p>
+        {% endif %}
+    </div>
+</body>
+</html>
