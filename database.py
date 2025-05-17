@@ -1,7 +1,7 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import TEXT, DESCENDING, ASCENDING
 import logging
-from typing import List, Dict, Optional
+from typing import List, Dict
 from datetime import datetime, timedelta
 from bson import ObjectId
 
@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self, uri: str, db_name: str = "movie_bot"):
+        # Client is created per event loop instance
         self.client = AsyncIOMotorClient(uri)
         self.db = self.client[db_name]
         self.posts = self.db.posts
@@ -18,7 +19,7 @@ class Database:
     async def initialize(self):
         """Create indexes"""
         try:
-            # Only one compound text index for both fields (MONGODB ALLOWS ONLY ONE TEXT INDEX PER COLLECTION)
+            # Only one compound text index for both fields
             await self.posts.create_index(
                 [("title", TEXT), ("description", TEXT)],
                 name="text_title_description"
