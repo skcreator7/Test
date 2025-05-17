@@ -1,86 +1,301 @@
-import asyncio
-from telethon import TelegramClient, events, Button
-import logging
+from pyrogram import Client, filters
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from config import Config
+import logging
+from typing import List, Dict, Optional
+import os
+import re
+import asyncio
+from datetime import datetime, timedelta
+from bson import ObjectId
+
+logger = logging.getLogger(__name__)
 
 class TelegramBot:
     def __init__(self, db):
         self.db = db
-        self.client = TelegramClient(
-            "bot",
-            Config.API_ID,
-            Config.API_HASH
-        ).start(bot_token=Config.BOT_TOKEN)
-        self.last_messages = {}  # user_id: [list of message ids]
+        self.user_session = os.getenv("USER_SESSION_STRING")
+        if not self.user_session:
+            raise ValueError("USER_SESSION_STRING is required for channel scraping")
+            
+        # Initialize Pyrogram user client
+        self.user_client = Client(
+            name="movie_scraper",
+            session_string=self.user_session,
+            api_id=Config.API_ID,
+            api_hash=Config.API_HASH
+        )
+        
+        # Initialize bot client
+        self.bot_client = Client(
+            name="movie_bot",
+            bot_token=Config.BOT_TOKEN,
+            api_id=Config.API_ID,
+            api_hash=Config.API_HASH
+        )
+        
+        self._register_handlers()
+        self.scrape_interval = timedelta(seconds=Config.SCRAPE_INTERVAL)
 
-    async def start(self):
-        logging.info("Starting Telegram bot...")
-        self.client.add_event_handler(self.start_cmd, events.NewMessage(pattern="/start"))
-        self.client.add_event_handler(self.search_query, events.NewMessage(func=lambda e: not e.text.startswith("/")))
-        await self.client.start()
-        logging.info("Telegram bot started.")
+    async def initialize(self):
+        # Start both clients
+        await self.user_client.start()
+        await self.bot_client.start()
+        
+        me = await self.bot_client.get_me()
+        logger.info(f"Bot started as @{me.username}")
+        
+        user = await self.user_client.get_me()
+        logger.info(f"User client started as @{user.username}")
+        
+        # Start background scraping task
+        asyncio.create_task(self._periodic_scrape())
+        
+        return self
+
+    async def _periodic_scrape(self):
+        """Periodically scrape channels for new content"""
+        while True:
+            try:
+                await self._scrape_channels()
+                logger.info(f"Channel scrape completed. Next in {self.scrape_interval}")
+            except Exception as e:
+                logger.error(f"Scraping failed: {e}")
+            
+            await asyncio.sleep(self.scrape_interval.total_seconds())
+
+    async def _scrape_channels(self):
+        """Scrape configured channels for new posts"""
+        channels = await self.db.get_channels_to_scrape()
+        if not channels:
+            logger.info("No channels to scrape")
+            return
+            
+        for channel in channels:
+            try:
+                last_scraped = channel.get('last_scraped') or datetime(1970, 1, 1)
+                new_posts = 0
+                
+                logger.info(f"Scraping channel {channel['name']} (ID: {channel['channel_id']})")
+                
+                async for message in self.user_client.get_chat_history(
+                    chat_id=channel['channel_id'],
+                    limit=100  # Check last 100 messages
+                ):
+                    # Skip old messages
+                    if message.date < last_scraped:
+                        break
+                        
+                    # Skip non-relevant messages
+                    if not (message.document or (message.text and any(
+                        kw in message.text.lower() 
+                        for kw in ['movie', 'film', 'download', 'watch']
+                    ))):
+                        continue
+                    
+                    # Process and save the post
+                    post_data = self._process_message(message)
+                    await self.db.upsert_post(
+                        channel_id=channel['channel_id'],
+                        message_id=message.id,
+                        data=post_data
+                    )
+                    new_posts += 1
+                
+                # Update scrape status
+                await self.db.update_channel_scrape_status(
+                    channel_id=channel['channel_id'],
+                    last_scraped=datetime.utcnow(),
+                    status='success',
+                    new_posts=new_posts
+                )
+                
+                logger.info(f"Found {new_posts} new posts in {channel['name']}")
+                
+            except Exception as e:
+                logger.error(f"Failed to scrape channel {channel['name']}: {e}")
+                await self.db.update_channel_scrape_status(
+                    channel_id=channel['channel_id'],
+                    status='failed',
+                    error=str(e)
+                )
+
+    def _process_message(self, message: Message) -> Dict:
+        """Convert Pyrogram message to our post format"""
+        return {
+            'title': self._extract_title(message),
+            'description': self._extract_description(message),
+            'size': self._format_size(message),
+            'links': self._extract_links(message),
+            'message_id': message.id,
+            'date': message.date,
+            'views': getattr(message, 'views', 0),
+            'scraped_at': datetime.utcnow(),
+            'media_type': self._get_media_type(message)
+        }
+
+    def _get_media_type(self, message: Message) -> str:
+        """Get media type from message"""
+        if message.document:
+            return 'document'
+        elif message.video:
+            return 'video'
+        elif message.audio:
+            return 'audio'
+        elif message.photo:
+            return 'photo'
+        return 'text'
+
+    def _extract_title(self, message: Message) -> str:
+        """Extract title from message"""
+        if message.caption:
+            return message.caption.split("\n")[0].strip()
+        elif message.text:
+            return message.text.split("\n")[0].strip()
+        return "Untitled"
+
+    def _extract_description(self, message: Message) -> str:
+        """Extract description from message"""
+        if message.caption:
+            return "\n".join(message.caption.split("\n")[1:]).strip()
+        elif message.text:
+            return "\n".join(message.text.split("\n")[1:]).strip()
+        return "No description"
+
+    def _format_size(self, message: Message) -> str:
+        """Format file size if available"""
+        if message.document:
+            size = message.document.file_size
+            if size < 1024:
+                return f"{size} B"
+            elif size < 1024 * 1024:
+                return f"{size/1024:.1f} KB"
+            elif size < 1024 * 1024 * 1024:
+                return f"{size/(1024*1024):.1f} MB"
+            else:
+                return f"{size/(1024*1024*1024):.1f} GB"
+        return ""
+
+    def _extract_links(self, message: Message) -> List[str]:
+        """Extract links from message"""
+        text = message.caption or message.text or ""
+        url_pattern = re.compile(
+            r'(https?://(?:www\.)?(?:mega\.nz|gofile\.io|mediafire\.com|drive\.google\.com|zippyshare\.com|1fichier\.com)[^\s]+)',
+            re.IGNORECASE
+        )
+        return url_pattern.findall(text)
+
+    def _register_handlers(self):
+        @self.bot_client.on_message(filters.command("start") & filters.private)
+        async def start_handler(client, message: Message):
+            await message.reply(
+                "🎬 Welcome to Movie Search Bot!\n\n"
+                "Search for movies from our private channels\n"
+                "Example: `Animal 2023` or `Oppenheimer`\n\n"
+                "Admin commands:\n"
+                "/add_channel - Add new channel to scrape\n"
+                "/list_channels - Show monitored channels",
+                parse_mode="markdown"
+            )
+
+        @self.bot_client.on_message(filters.command("add_channel") & filters.user(Config.ADMINS))
+        async def add_channel_handler(client, message: Message):
+            try:
+                if len(message.command) < 2:
+                    await message.reply("Usage: /add_channel <channel_id> <name>")
+                    return
+                
+                channel_id = int(message.command[1])
+                name = ' '.join(message.command[2:]) or f"Channel {channel_id}"
+                
+                # Verify the user client has access to this channel
+                try:
+                    chat = await self.user_client.get_chat(channel_id)
+                    if not chat:
+                        await message.reply("Could not access channel. Make sure the user is a member.")
+                        return
+                except Exception as e:
+                    await message.reply(f"Failed to access channel: {e}")
+                    return
+                
+                # Add to database
+                await self.db.add_channel({
+                    'channel_id': channel_id,
+                    'name': name,
+                    'added_by': message.from_user.id,
+                    'added_at': datetime.utcnow(),
+                    'last_scraped': None,
+                    'scrape_status': 'pending'
+                })
+                
+                await message.reply(f"✅ Channel added: {name} (ID: {channel_id})")
+                
+                # Trigger immediate scrape
+                asyncio.create_task(self._scrape_channels())
+                
+            except Exception as e:
+                await message.reply(f"Error adding channel: {e}")
+
+        @self.bot_client.on_message(filters.command("list_channels") & filters.user(Config.ADMINS))
+        async def list_channels_handler(client, message: Message):
+            channels = await self.db.get_channels()
+            if not channels:
+                await message.reply("No channels configured")
+                return
+                
+            response = ["📺 Monitored Channels:"]
+            for channel in channels:
+                status = f"🟢 {channel['scrape_status']}" if channel['scrape_status'] == 'success' else f"🔴 {channel['scrape_status']}"
+                last_scraped = channel.get('last_scraped', 'Never')
+                if isinstance(last_scraped, datetime):
+                    last_scraped = last_scraped.strftime('%Y-%m-%d %H:%M')
+                response.append(
+                    f"{status} {channel['name']} (ID: {channel['channel_id']})\n"
+                    f"Last scraped: {last_scraped}\n"
+                    f"Posts: {channel.get('post_count', 0)}"
+                )
+            
+            await message.reply("\n\n".join(response))
+
+        @self.bot_client.on_message(filters.text & filters.private & ~filters.command)
+        async def search_handler(client, message: Message):
+            query = message.text.strip()
+            if len(query) < 3:
+                await message.reply("Please enter at least 3 characters to search")
+                return
+            
+            try:
+                await message.reply_chat_action("typing")
+                
+                # Search in database
+                results = await self.db.search_posts(query)
+                
+                if not results:
+                    await message.reply("No results found. Try different keywords")
+                    return
+                
+                # Format results
+                response = ["🔍 Search Results:"]
+                for idx, result in enumerate(results[:5], 1):
+                    links = "\n".join([f"🔗 {link}" for link in result['links'][:2]]) if result.get('links') else ""
+                    response.append(
+                        f"{idx}. **{result['title']}**\n"
+                        f"📅 {result['date'].strftime('%b %d, %Y')}\n"
+                        f"📦 {result.get('size', '')}\n"
+                        f"{links}"
+                    )
+                
+                await message.reply(
+                    "\n\n".join(response),
+                    parse_mode="markdown",
+                    disable_web_page_preview=True
+                )
+                
+            except Exception as e:
+                logger.error(f"Search error: {e}", exc_info=True)
+                await message.reply("Error searching. Please try again later")
 
     async def stop(self):
-        await self.client.disconnect()
-
-    async def start_cmd(self, event):
-        await event.respond(
-            "👋 *Welcome!*\n\nSend me any movie or series name to search.",
-            parse_mode="md"
-        )
-
-    async def search_query(self, event):
-        query = event.text.strip()
-        user_id = event.sender_id
-
-        if len(query) < 2:
-            m = await event.respond("❌ Please enter at least 2 characters.")
-            await asyncio.sleep(10)
-            await m.delete()
-            return
-
-        results = await self.db.search_posts(query, limit=6)
-        # Clean up previous bot messages for this user for spam-free UX
-        if user_id in self.last_messages:
-            for msg_id in self.last_messages[user_id]:
-                try:
-                    await self.client.delete_messages(event.chat_id, msg_id)
-                except Exception:
-                    pass
-            self.last_messages[user_id] = []
-
-        if not results:
-            m = await event.respond("❌ No results found.")
-            await asyncio.sleep(10)
-            await m.delete()
-            return
-
-        msg_ids = []
-        for post in results:
-            url = f"{Config.BASE_URL}/post/{post['_id']}"
-            btn = [Button.url("🔗 View Post", url)]
-            msg = await event.respond(
-                f"**{post['title']}**",
-                buttons=btn,
-                parse_mode="md"
-            )
-            msg_ids.append(msg.id)
-            await asyncio.sleep(1)
-
-        # Try to delete user's query after showing result
-        try:
-            await event.delete()
-        except Exception:
-            pass
-
-        # Schedule deleting results after 30 seconds
-        async def auto_delete(ids):
-            await asyncio.sleep(30)
-            for mid in ids:
-                try:
-                    await self.client.delete_messages(event.chat_id, mid)
-                except Exception:
-                    pass
-
-        asyncio.create_task(auto_delete(msg_ids))
-        self.last_messages[user_id] = msg_ids
+        await self.user_client.stop()
+        await self.bot_client.stop()
+        logger.info("All clients stopped")
