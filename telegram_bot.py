@@ -1,7 +1,5 @@
-from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
-from pyrogram.enums import ParseMode
-from pyrogram import raw
+from telethon import TelegramClient, events, Button
+from telethon.tl.types import InputPeerChannel
 from config import Config
 import logging
 import re
@@ -17,37 +15,49 @@ class TelegramBot:
             db: Database instance
         """
         self.db = db
-        self.app = Client(
-            "movie_bot",
-            api_id=Config.API_ID,
-            api_hash=Config.API_HASH,
-            bot_token=Config.BOT_TOKEN,
-            workers=Config.WORKERS,
-            sleep_threshold=30
-        )
+        self.client = TelegramClient(
+            'movie_bot',
+            Config.API_ID,
+            Config.API_HASH,
+            base_logger=logger
+        ).start(bot_token=Config.BOT_TOKEN)
         self._register_handlers()
 
     async def initialize(self) -> 'TelegramBot':
         """Start the bot and initialize resources"""
         try:
-            await self.app.start()
-            me = await self.app.get_me()
-            await Config.update_channel_info(self.app)
+            me = await self.client.get_me()
+            await Config.update_channel_info(self.client)
             logger.info(f"Bot started as @{me.username}")
             return self
         except Exception as e:
             logger.critical(f"Bot initialization failed: {e}")
             raise
 
-    async def _get_input_peer_channel(self) -> raw.types.InputPeerChannel:
+    async def _get_input_peer_channel(self) -> InputPeerChannel:
         """Get InputPeerChannel for the source channel"""
-        return await self.db.get_channel_peer(self)
+        try:
+            chat = await self.client.get_entity(Config.SOURCE_CHANNEL_ID)
+            await self.db.update_channel_hash(chat.id, chat.access_hash)
+            return InputPeerChannel(
+                channel_id=chat.id,
+                access_hash=chat.access_hash
+            )
+        except Exception as e:
+            logger.warning(f"Failed to get fresh channel info: {str(e)}")
+            doc = await self.db.channels.find_one({'_id': Config.SOURCE_CHANNEL_ID})
+            if doc:
+                return InputPeerChannel(
+                    channel_id=doc['_id'],
+                    access_hash=doc['access_hash']
+                )
+            raise ConnectionError("Could not retrieve channel information")
 
-    async def _search_channel_posts(self, query: str) -> AsyncGenerator[Message, None]:
+    async def _search_channel_posts(self, query: str) -> AsyncGenerator[Any, None]:
         """Search messages in the source channel"""
-        async for message in self.app.search_messages(
-            chat_id=Config.SOURCE_CHANNEL_ID,
-            query=query,
+        async for message in self.client.iter_messages(
+            Config.SOURCE_CHANNEL_ID,
+            search=query,
             limit=20
         ):
             if message.text:
@@ -97,29 +107,26 @@ class TelegramBot:
     def _register_handlers(self) -> None:
         """Register all bot message handlers"""
 
-        @self.app.on_message(filters.command("start") & filters.private)
-        async def start_handler(client: Client, message: Message) -> None:
+        @self.client.on(events.NewMessage(pattern='/start'))
+        async def start_handler(event):
             """Handle /start command"""
-            await message.reply(
+            await event.reply(
                 "🎬 Welcome to Movie Search Bot!\n\n"
                 "Search for any movie/series and get direct links\n"
                 "Example: `Avengers Endgame` or `Mirzapur S01`",
-                parse_mode=ParseMode.MARKDOWN
+                parse_mode='md'
             )
 
-        @self.app.on_message(
-            filters.text 
-            & filters.private 
-            & filters.create(
-                lambda _, __, m: not m.text.startswith('/')
-            )
-        )
-        async def search_handler(client: Client, message: Message) -> None:
+        @self.client.on(events.NewMessage())
+        async def search_handler(event):
             """Handle search queries"""
             try:
-                query = message.text.strip()
+                if event.text.startswith('/'):
+                    return
+                    
+                query = event.text.strip()
                 if len(query) < 3:
-                    await message.reply("Minimum 3 characters required")
+                    await event.reply("Minimum 3 characters required")
                     return
                 
                 results: List[Dict[str, Any]] = []
@@ -130,7 +137,7 @@ class TelegramBot:
                         results.append(post)
                 
                 if not results:
-                    await message.reply("No results found")
+                    await event.reply("No results found")
                     return
                 
                 first_result = results[0]
@@ -141,58 +148,57 @@ class TelegramBot:
                 for quality in ['480p', '720p HEVC', '720p', '1080p']:
                     if quality in first_result.get('links', {}):
                         buttons.append(
-                            InlineKeyboardButton(quality, url=first_result['links'][quality])
+                            Button.url(quality, first_result['links'][quality])
                         )
                 
                 # Add web view button
-                buttons.append(InlineKeyboardButton("🌐 Web View", url=web_url))
+                buttons.append(Button.url("🌐 Web View", web_url))
                 
                 # Add more results button if available
                 if len(results) > 1:
                     buttons.append(
-                        InlineKeyboardButton(
+                        Button.inline(
                             f"More Results ({len(results)-1})",
-                            callback_data=f"more:{query}"
+                            data=f"more:{query}"
                         )
                     )
                 
                 # Organize buttons in 2x2 grid
-                keyboard = InlineKeyboardMarkup([buttons[i:i+2] for i in range(0, len(buttons), 2)])
+                keyboard = [buttons[i:i+2] for i in range(0, len(buttons), 2)]
                 
-                await message.reply(
+                await event.reply(
                     f"🎬 *{first_result['title']}*\n"
                     "Choose quality option:",
-                    reply_markup=keyboard,
-                    parse_mode=ParseMode.MARKDOWN,
-                    disable_web_page_preview=True
+                    buttons=keyboard,
+                    parse_mode='md',
+                    link_preview=False
                 )
             except Exception as e:
                 logger.error(f"Search handler error: {e}")
-                await message.reply("An error occurred while processing your request")
+                await event.reply("An error occurred while processing your request")
 
-        @self.app.on_callback_query(filters.regex("^more:"))
-        async def more_results_handler(client: Client, callback_query: Any) -> None:
+        @self.client.on(events.CallbackQuery(data=re.compile(b'^more:')))
+        async def more_results_handler(event):
             """Handle 'more results' callback"""
             try:
-                query = callback_query.data.split(":", 1)[1]
+                query = event.data.decode().split(":", 1)[1]
                 web_url = f"{Config.BASE_URL}/search?q={query}"
                 
-                await callback_query.message.reply(
+                await event.edit(
                     f"🔍 All results for '{query}' available on web:\n{web_url}",
-                    reply_markup=InlineKeyboardMarkup([[
-                        InlineKeyboardButton("Open Web Results", url=web_url)
-                    ]]),
-                    disable_web_page_preview=True
+                    buttons=[
+                        [Button.url("Open Web Results", web_url)]
+                    ],
+                    link_preview=False
                 )
-                await callback_query.answer()
             except Exception as e:
                 logger.error(f"More results handler error: {e}")
-                await callback_query.answer("An error occurred", show_alert=True)
+                await event.answer("An error occurred", alert=True)
 
     async def stop(self) -> None:
         """Stop the bot gracefully"""
         try:
-            await self.app.stop()
+            await self.client.disconnect()
             logger.info("Bot stopped successfully")
         except Exception as e:
             logger.error(f"Error stopping bot: {e}")
