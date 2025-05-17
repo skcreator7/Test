@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Movie Links</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>{{ post.title if post else 'Movie Links' }}</h1>
+      
+      {% if post %}
+      <div class="post-meta">
+        <span>Posted on: {{ post.date.strftime('%b %d, %Y') }}</span>
+        {% if post.size %}<span>{{ post.size }}</span>{% endif %}
+      </div>
+      <div class="description">
+        {{ post.description }}
+      </div>
+      {% endif %}
+    </div>
+
+    {% if links %}
+    <div class="card">
+      <h2>Available Links ({{ link_count }})</h2>
+      
+      <div class="links-container">
+        {% for link in links %}
+        <div class="link-card">
+          <p class="link-url">{{ link }}</p>
+          <button class="btn copy-btn" data-link="{{ link }}">Copy Link</button>
+          <a href="{{ link }}" target="_blank" class="btn">Open Link</a>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <script src="/static/js/script.js"></script>
+</body>
+</html>
