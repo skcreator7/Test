@@ -67,6 +67,7 @@ def main():
             loop.add_signal_handler(
                 sig,
                 lambda s=sig: asyncio.create_task(shutdown(s, loop, app))
+            )
         
         logger.info(f"Starting web server on {Config.HOST}:{Config.PORT}")
         web.run_app(
