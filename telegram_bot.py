@@ -1,75 +1,86 @@
+import asyncio
 from telethon import TelegramClient, events, Button
-from telethon.sessions import StringSession
+import logging
 from config import Config
 
 class TelegramBot:
     def __init__(self, db):
         self.db = db
         self.client = TelegramClient(
-            StringSession(Config.STRING_SESSION),
+            "bot",
             Config.API_ID,
             Config.API_HASH
-        )
+        ).start(bot_token=Config.BOT_TOKEN)
+        self.last_messages = {}  # user_id: [list of message ids]
 
     async def start(self):
+        logging.info("Starting Telegram bot...")
+        self.client.add_event_handler(self.start_cmd, events.NewMessage(pattern="/start"))
+        self.client.add_event_handler(self.search_query, events.NewMessage(func=lambda e: not e.text.startswith("/")))
         await self.client.start()
-        self.add_handlers()
+        logging.info("Telegram bot started.")
 
     async def stop(self):
         await self.client.disconnect()
 
-    def add_handlers(self):
-        # Channel me nayi post aaye to DB me save ho
-        @self.client.on(events.NewMessage(chats=Config.SOURCE_CHANNEL_ID))
-        async def auto_save_new_post(event):
-            msg = event.message
-            doc = {
-                "_id": msg.id,
-                "text": msg.text or "",
-                "title": (msg.text or "").split("\n")[0][:64] if msg.text else "",
-                "date": msg.date,
-                "from_channel": Config.SOURCE_CHANNEL_ID
-            }
-            await self.db.save_post(doc)
+    async def start_cmd(self, event):
+        await event.respond(
+            "👋 *Welcome!*\n\nSend me any movie or series name to search.",
+            parse_mode="md"
+        )
 
-        # Channel se post delete ho to DB se bhi delete ho
-        @self.client.on(events.MessageDeleted(chats=Config.SOURCE_CHANNEL_ID))
-        async def auto_delete_post(event):
-            for msg_id in event.deleted_ids:
-                await self.db.delete_post(msg_id)
+    async def search_query(self, event):
+        query = event.text.strip()
+        user_id = event.sender_id
 
-        # /start command
-        @self.client.on(events.NewMessage(pattern=r'^/start'))
-        async def start_handler(event):
-            await event.respond(
-                "👋 <b>Welcome to Movie Search Bot!</b>\n\n"
-                "Just type the name of any movie or series to search instantly.\n"
-                "You can also use the web version: [Open Web App]({})".format(Config.BASE_URL),
-                parse_mode='html',
-                buttons=[
-                    [Button.url("🌐 Open Web App", Config.BASE_URL)]
-                ]
+        if len(query) < 2:
+            m = await event.respond("❌ Please enter at least 2 characters.")
+            await asyncio.sleep(10)
+            await m.delete()
+            return
+
+        results = await self.db.search_posts(query, limit=6)
+        # Clean up previous bot messages for this user for spam-free UX
+        if user_id in self.last_messages:
+            for msg_id in self.last_messages[user_id]:
+                try:
+                    await self.client.delete_messages(event.chat_id, msg_id)
+                except Exception:
+                    pass
+            self.last_messages[user_id] = []
+
+        if not results:
+            m = await event.respond("❌ No results found.")
+            await asyncio.sleep(10)
+            await m.delete()
+            return
+
+        msg_ids = []
+        for post in results:
+            url = f"{Config.BASE_URL}/post/{post['_id']}"
+            btn = [Button.url("🔗 View Post", url)]
+            msg = await event.respond(
+                f"**{post['title']}**",
+                buttons=btn,
+                parse_mode="md"
             )
+            msg_ids.append(msg.id)
+            await asyncio.sleep(1)
 
-        # Search: bina command ke bhi
-        @self.client.on(events.NewMessage())
-        async def instant_search_handler(event):
-            text = event.raw_text.strip()
-            if text.startswith('/'):
-                return
-            if not text:
-                return
-            reply = await event.respond(f"⏳ Searching for <b>{text}</b>...", parse_mode='html')
-            results = await self.db.search_posts(text)
-            if results:
-                resp_text = f"🔎 <b>Search Results for:</b> <code>{text}</code>\n"
-                buttons = []
-                for post in results:
-                    title = post['title']
-                    post_id = post['_id']
-                    url = f"{Config.BASE_URL}/view/{post_id}?q={text}"
-                    buttons.append([Button.url(title, url)])
-                    resp_text += f"• <b>{title}</b>\n"
-                await reply.edit(resp_text, buttons=buttons, parse_mode='html')
-            else:
-                await reply.edit(f"❌ No results found for <b>{text}</b>.", parse_mode='html')
+        # Try to delete user's query after showing result
+        try:
+            await event.delete()
+        except Exception:
+            pass
+
+        # Schedule deleting results after 30 seconds
+        async def auto_delete(ids):
+            await asyncio.sleep(30)
+            for mid in ids:
+                try:
+                    await self.client.delete_messages(event.chat_id, mid)
+                except Exception:
+                    pass
+
+        asyncio.create_task(auto_delete(msg_ids))
+        self.last_messages[user_id] = msg_ids
