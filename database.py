@@ -3,13 +3,12 @@ from pymongo import TEXT, DESCENDING, ASCENDING
 import logging
 from typing import List, Dict
 from datetime import datetime, timedelta
-from bson import ObjectId
+from config import Config
 
 logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self, uri: str, db_name: str = "movie_bot"):
-        # Create client ONLY inside the event loop (not global scope)
         self.client = AsyncIOMotorClient(uri)
         self.db = self.client[db_name]
         self.posts = self.db.posts
@@ -47,7 +46,7 @@ class Database:
             upsert=True
         )
 
-    async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime, 
+    async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime,
                                            status: str, new_posts: int = 0, error: str = None):
         update_fields = {
             'last_scraped': last_scraped,
@@ -76,11 +75,14 @@ class Database:
         return await self.channels.find().sort('name', 1).to_list(None)
 
     async def search_posts(self, query: str, limit: int = 5) -> List[Dict]:
+        search_filter = {
+            '$text': {'$search': query},
+            'channel_id': {'$in': Config.CHANNEL_IDS}
+        }
         cursor = self.posts.find(
-            {'$text': {'$search': query}},
-            {'score': {'$meta': 'textScore'}}
+            search_filter,
+            {'score': {'$meta': 'textScore'}, 'channel_id': 1, 'title': 1, 'description': 1, 'links': 1, 'date': 1, 'size': 1}
         ).sort([('score', {'$meta': 'textScore'}), ('date', DESCENDING)]).limit(limit)
-
         return await cursor.to_list(length=limit)
 
     async def close(self):
