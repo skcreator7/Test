@@ -77,7 +77,7 @@ class Database:
     async def search_posts(self, query: str, limit: int = 5) -> List[Dict]:
         search_filter = {
             '$text': {'$search': query},
-            'channel_id': {'$in': Config.CHANNEL_IDS}
+            'channel_id': {'$in': Config.CHANNEL_IDS}  # <-- Only search in allowed channels
         }
         cursor = self.posts.find(
             search_filter,
