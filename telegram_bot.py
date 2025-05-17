@@ -17,83 +17,68 @@ class TelegramBot:
         self.user_session = os.getenv("USER_SESSION_STRING")
         if not self.user_session:
             raise ValueError("USER_SESSION_STRING is required for channel scraping")
-            
-        # Initialize Pyrogram user client
+
         self.user_client = Client(
             name="movie_scraper",
             session_string=self.user_session,
             api_id=Config.API_ID,
             api_hash=Config.API_HASH
         )
-        
-        # Initialize bot client
         self.bot_client = Client(
             name="movie_bot",
             bot_token=Config.BOT_TOKEN,
             api_id=Config.API_ID,
             api_hash=Config.API_HASH
         )
-        
         self._register_handlers()
         self.scrape_interval = timedelta(seconds=Config.SCRAPE_INTERVAL)
 
     async def initialize(self):
-        # Start both clients
         await self.user_client.start()
         await self.bot_client.start()
-        
+
         me = await self.bot_client.get_me()
         logger.info(f"Bot started as @{me.username}")
-        
+
         user = await self.user_client.get_me()
         logger.info(f"User client started as @{user.username}")
-        
-        # Start background scraping task
+
         asyncio.create_task(self._periodic_scrape())
-        
         return self
 
     async def _periodic_scrape(self):
-        """Periodically scrape channels for new content"""
         while True:
             try:
                 await self._scrape_channels()
                 logger.info(f"Channel scrape completed. Next in {self.scrape_interval}")
             except Exception as e:
                 logger.error(f"Scraping failed: {e}")
-            
             await asyncio.sleep(self.scrape_interval.total_seconds())
 
     async def _scrape_channels(self):
-        """Scrape configured channels for new posts"""
         channels = await self.db.get_channels_to_scrape()
         if not channels:
             logger.info("No channels to scrape")
             return
-            
+
         for channel in channels:
             try:
                 last_scraped = channel.get('last_scraped') or datetime(1970, 1, 1)
                 new_posts = 0
-                
+
                 logger.info(f"Scraping channel {channel['name']} (ID: {channel['channel_id']})")
-                
+
                 async for message in self.user_client.get_chat_history(
                     chat_id=channel['channel_id'],
-                    limit=100  # Check last 100 messages
+                    limit=100
                 ):
-                    # Skip old messages
                     if message.date < last_scraped:
                         break
-                        
-                    # Skip non-relevant messages
                     if not (message.document or (message.text and any(
-                        kw in message.text.lower() 
+                        kw in message.text.lower()
                         for kw in ['movie', 'film', 'download', 'watch']
                     ))):
                         continue
-                    
-                    # Process and save the post
                     post_data = self._process_message(message)
                     await self.db.upsert_post(
                         channel_id=channel['channel_id'],
@@ -101,27 +86,23 @@ class TelegramBot:
                         data=post_data
                     )
                     new_posts += 1
-                
-                # Update scrape status
                 await self.db.update_channel_scrape_status(
                     channel_id=channel['channel_id'],
                     last_scraped=datetime.utcnow(),
                     status='success',
                     new_posts=new_posts
                 )
-                
                 logger.info(f"Found {new_posts} new posts in {channel['name']}")
-                
             except Exception as e:
                 logger.error(f"Failed to scrape channel {channel['name']}: {e}")
                 await self.db.update_channel_scrape_status(
                     channel_id=channel['channel_id'],
+                    last_scraped=datetime.utcnow(),
                     status='failed',
                     error=str(e)
                 )
 
     def _process_message(self, message: Message) -> Dict:
-        """Convert Pyrogram message to our post format"""
         return {
             'title': self._extract_title(message),
             'description': self._extract_description(message),
@@ -135,7 +116,6 @@ class TelegramBot:
         }
 
     def _get_media_type(self, message: Message) -> str:
-        """Get media type from message"""
         if message.document:
             return 'document'
         elif message.video:
@@ -147,7 +127,6 @@ class TelegramBot:
         return 'text'
 
     def _extract_title(self, message: Message) -> str:
-        """Extract title from message"""
         if message.caption:
             return message.caption.split("\n")[0].strip()
         elif message.text:
@@ -155,7 +134,6 @@ class TelegramBot:
         return "Untitled"
 
     def _extract_description(self, message: Message) -> str:
-        """Extract description from message"""
         if message.caption:
             return "\n".join(message.caption.split("\n")[1:]).strip()
         elif message.text:
@@ -163,7 +141,6 @@ class TelegramBot:
         return "No description"
 
     def _format_size(self, message: Message) -> str:
-        """Format file size if available"""
         if message.document:
             size = message.document.file_size
             if size < 1024:
@@ -177,7 +154,6 @@ class TelegramBot:
         return ""
 
     def _extract_links(self, message: Message) -> List[str]:
-        """Extract links from message"""
         text = message.caption or message.text or ""
         url_pattern = re.compile(
             r'(https?://(?:www\.)?(?:mega\.nz|gofile\.io|mediafire\.com|drive\.google\.com|zippyshare\.com|1fichier\.com)[^\s]+)',
@@ -204,11 +180,8 @@ class TelegramBot:
                 if len(message.command) < 2:
                     await message.reply("Usage: /add_channel <channel_id> <name>")
                     return
-                
                 channel_id = int(message.command[1])
                 name = ' '.join(message.command[2:]) or f"Channel {channel_id}"
-                
-                # Verify the user client has access to this channel
                 try:
                     chat = await self.user_client.get_chat(channel_id)
                     if not chat:
@@ -217,8 +190,6 @@ class TelegramBot:
                 except Exception as e:
                     await message.reply(f"Failed to access channel: {e}")
                     return
-                
-                # Add to database
                 await self.db.add_channel({
                     'channel_id': channel_id,
                     'name': name,
@@ -227,12 +198,8 @@ class TelegramBot:
                     'last_scraped': None,
                     'scrape_status': 'pending'
                 })
-                
                 await message.reply(f"✅ Channel added: {name} (ID: {channel_id})")
-                
-                # Trigger immediate scrape
                 asyncio.create_task(self._scrape_channels())
-                
             except Exception as e:
                 await message.reply(f"Error adding channel: {e}")
 
@@ -242,7 +209,6 @@ class TelegramBot:
             if not channels:
                 await message.reply("No channels configured")
                 return
-                
             response = ["📺 Monitored Channels:"]
             for channel in channels:
                 status = f"🟢 {channel['scrape_status']}" if channel['scrape_status'] == 'success' else f"🔴 {channel['scrape_status']}"
@@ -254,7 +220,6 @@ class TelegramBot:
                     f"Last scraped: {last_scraped}\n"
                     f"Posts: {channel.get('post_count', 0)}"
                 )
-            
             await message.reply("\n\n".join(response))
 
         @self.bot_client.on_message(filters.text & filters.private & ~filters.command)
@@ -263,18 +228,12 @@ class TelegramBot:
             if len(query) < 3:
                 await message.reply("Please enter at least 3 characters to search")
                 return
-            
             try:
                 await message.reply_chat_action("typing")
-                
-                # Search in database
                 results = await self.db.search_posts(query)
-                
                 if not results:
                     await message.reply("No results found. Try different keywords")
                     return
-                
-                # Format results
                 response = ["🔍 Search Results:"]
                 for idx, result in enumerate(results[:5], 1):
                     links = "\n".join([f"🔗 {link}" for link in result['links'][:2]]) if result.get('links') else ""
@@ -284,13 +243,11 @@ class TelegramBot:
                         f"📦 {result.get('size', '')}\n"
                         f"{links}"
                     )
-                
                 await message.reply(
                     "\n\n".join(response),
                     parse_mode="markdown",
                     disable_web_page_preview=True
                 )
-                
             except Exception as e:
                 logger.error(f"Search error: {e}", exc_info=True)
                 await message.reply("Error searching. Please try again later")
