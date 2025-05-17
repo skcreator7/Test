@@ -8,23 +8,14 @@ import os
 logger = logging.getLogger(__name__)
 
 def create_app(db, bot):
-    """Application factory"""
     app = web.Application()
-    
-    # Setup templates
     setup_jinja2(app, loader=FileSystemLoader('templates'))
-    
-    # Store dependencies
     app['db'] = db
     app['bot'] = bot
-    
-    # Setup routes
     app.router.add_get('/', home)
     app.router.add_get('/search', search)
     app.router.add_get('/watch', watch)
-    # Use absolute path for static to avoid deployment issues
     app.router.add_static('/static/', path=os.path.abspath('static'))
-    
     return app
 
 @template('index.html')
@@ -34,7 +25,6 @@ async def home(request):
 @template('search.html')
 async def search(request):
     query = request.query.get('q', '')
-    # Defensive: Only search if query is not empty and at least 3 chars (optional, UX improvement)
     results = await request.app['db'].search_posts(query) if query else []
     return {
         "query": query,
