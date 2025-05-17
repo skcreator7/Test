@@ -1,6 +1,7 @@
 from pyrogram import Client, filters
-from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup, InputPeerChannel
+from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.enums import ParseMode
+from pyrogram import raw
 from config import Config
 import logging
 import re
@@ -26,20 +27,19 @@ class TelegramBot:
         logger.info(f"Bot started as @{me.username}")
         return self
 
-    async def _get_channel_peer(self):
+    async def _get_input_peer_channel(self):
         return await self.db.get_channel_peer(self)
 
     async def _search_channel_posts(self, query: str):
-        peer = await self._get_channel_peer()
         async for message in self.app.search_messages(
-            chat_id=peer.channel_id,
+            chat_id=Config.SOURCE_CHANNEL_ID,
             query=query,
             limit=20
         ):
             if message.text:
                 yield message
 
-    async def _parse_movie_post(self, text: str):
+    async def _parse_movie_post(self, text: str) -> Dict:
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         if not lines:
             return {}
@@ -67,7 +67,7 @@ class TelegramBot:
         
         return movie
 
-    async def _generate_web_link(self, post_id: int, query: str = ""):
+    async def _generate_web_link(self, post_id: int, query: str = "") -> str:
         return f"{Config.BASE_URL}/view/{post_id}?q={query}"
 
     def _register_handlers(self):
