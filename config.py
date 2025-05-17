@@ -13,8 +13,8 @@ class Config:
     PORT = int(os.getenv("PORT", "8000"))
     MONGO_DB = os.getenv("MONGO_DB", "movie_bot")
     WORKERS = int(os.getenv("WORKERS", "4"))
-    TELEGRAM_CHANNEL = os.getenv("TELEGRAM_CHANNEL", "https://t.me/example")
-    WHATSAPP_CHANNEL = os.getenv("WHATSAPP_CHANNEL", "https://whatsapp.com/example")
+    TELEGRAM_CHANNEL = os.getenv("TELEGRAM_CHANNEL", "https://t.me/Sk4film")
+    WHATSAPP_CHANNEL = os.getenv("WHATSAPP_CHANNEL", "https://whatsapp.com/channel/0029Va69Ts2C6ZvmEWsHNo3c")
 
     @classmethod
     def validate(cls):
