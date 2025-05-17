@@ -19,10 +19,10 @@ class TelegramBot:
         if self.mode == "user":
             logger.info("Initializing Telegram in USER mode")
             self.client = Client(
-                session_name=self.user_session,  # <-- Directly the session string
+                self.user_session,  # बस इसी तरह दें
                 api_id=self.api_id,
                 api_hash=self.api_hash,
-                in_memory=True
+                in_memory=True      # in_memory optional है
             )
         else:
             logger.info("Initializing Telegram in BOT mode")
