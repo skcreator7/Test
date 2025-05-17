@@ -257,8 +257,8 @@ class TelegramBot:
 
             await message.reply("\n\n".join(response))
 
-        # FIXED LINE: use ~filters.command() not ~filters.command
-        @self.bot_client.on_message(filters.text & filters.private & ~filters.command())
+        # FIXED LINE: use ~filters.regex(r"^/") to exclude commands
+        @self.bot_client.on_message(filters.text & filters.private & ~filters.regex(r"^/"))
         async def search_handler(client, message: Message):
             query = message.text.strip()
             if len(query) < 3:
