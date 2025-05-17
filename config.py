@@ -4,16 +4,16 @@ from typing import List
 class Config:
     # Required Configuration
     BOT_TOKEN = os.getenv("BOT_TOKEN")
+    USER_SESSION_STRING = os.getenv("USER_SESSION_STRING")
     API_ID = int(os.getenv("API_ID", 0))
     API_HASH = os.getenv("API_HASH")
     MONGO_URI = os.getenv("MONGO_URI")
     BASE_URL = os.getenv("BASE_URL")
 
-    # Private Channel IDs to restrict search (add your private channel IDs here)
+    # Private Channel IDs to restrict search
     CHANNEL_IDS = [
-        -1002024811395,   # Example: Replace with your private channel IDs
+        -1002024811395,
         -1002690734110
-        # Add more as needed
     ]
 
     # Optional Configuration with Defaults
@@ -28,13 +28,16 @@ class Config:
     def validate(cls):
         """Validate all required configuration values"""
         required = {
-            'BOT_TOKEN': str,
             'API_ID': int,
             'API_HASH': str,
             'MONGO_URI': str,
             'BASE_URL': str
         }
         errors = []
+        # At least one of BOT_TOKEN or USER_SESSION_STRING required
+        if not (cls.BOT_TOKEN or cls.USER_SESSION_STRING):
+            errors.append("Either BOT_TOKEN or USER_SESSION_STRING must be set")
+
         for name, expected_type in required.items():
             value = getattr(cls, name)
             if not value:
