@@ -1,8 +1,8 @@
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import TEXT
-from pyrogram.types import InputPeerChannel
+from pyrogram import raw
 import logging
-from typing import Dict
+from typing import List, Dict
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -29,7 +29,6 @@ class Database:
                 await self.posts.create_index([("text", TEXT)])
                 logger.info("Search indexes created successfully")
             
-            # Ensure channel collection has index
             await self.channels.create_index([("_id", 1)], unique=True)
         except Exception as e:
             logger.error(f"Index creation failed: {e}")
@@ -45,12 +44,18 @@ class Database:
         try:
             chat = await bot.app.get_chat(Config.SOURCE_CHANNEL_ID)
             await self.update_channel_hash(chat.id, chat.access_hash)
-            return InputPeerChannel(chat.id, chat.access_hash)
+            return raw.types.InputPeerChannel(
+                channel_id=chat.id,
+                access_hash=chat.access_hash
+            )
         except Exception as e:
             logger.error(f"Failed to get channel peer: {e}")
             doc = await self.channels.find_one({'_id': Config.SOURCE_CHANNEL_ID})
             if doc and doc.get('access_hash'):
-                return InputPeerChannel(doc['_id'], doc['access_hash'])
+                return raw.types.InputPeerChannel(
+                    channel_id=doc['_id'],
+                    access_hash=doc['access_hash']
+                )
             raise
 
     async def search_posts(self, query: str, limit: int = 10) -> List[Dict]:
