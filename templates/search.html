@@ -1,20 +1,36 @@
-{% extends "base.html" %}
-{% block content %}
-<div class="post-card">
-    <div class="post-title">{{ post.title }}</div>
-    <div class="post-content">
-        <pre class="post-fulltext">{{ post.full_text }}</pre>
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Search Results</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Results for "{{ query }}"</h1>
+        {% if results %}
+        <div class="results">
+            {% for result in results %}
+            <div class="card result-card">
+                <h3>{{ result.title }}</h3>
+                <p class="meta">
+                    <span>{{ result.date.strftime('%b %d, %Y') }}</span>
+                    {% if result.size %}<span>{{ result.size }}</span>{% endif %}
+                </p>
+                <p>{{ result.description|truncate(100) }}</p>
+                {% if result.links %}
+                <div class="links">
+                    {% for link in result.links[:2] %}
+                    <a href="{{ link }}" target="_blank" class="btn">Link {{ loop.index }}</a>
+                    {% endfor %}
+                </div>
+                {% endif %}
+                <a href="/watch?id={{ result._id }}" class="btn">View Details</a>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p>No results found</p>
+        {% endif %}
     </div>
-    <div class="post-links">
-        {% set labels_hd = ["480p", "720p", "1080p"] %}
-        {% for lnk in post.links %}
-            {% set label = lnk.label or lnk.resolution or "" %}
-            {% if label and (label in labels_hd) %}
-                <a href="{{ lnk.url }}" class="res-btn" target="_blank">{{ label }}</a>
-            {% else %}
-                <a href="{{ lnk.url }}" class="res-btn" target="_blank">Episode {{ loop.index }}</a>
-            {% endif %}
-        {% endfor %}
-    </div>
-</div>
-{% endblock %}
+</body>
+</html>
