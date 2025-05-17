@@ -18,9 +18,7 @@ class Database:
         self.channels = self.db.channels
 
     async def initialize(self) -> None:
-        """Initialize database with proper indexes"""
         try:
-            # Create text index if not exists
             indexes = await self.posts.index_information()
             if "text_title_text" not in indexes:
                 await self.posts.create_index(
@@ -29,17 +27,13 @@ class Database:
                     background=True
                 )
                 logger.info("Created text index")
-
-            # Ensure channels collection exists
             if "channels" not in await self.db.list_collection_names():
                 await self.db.create_collection("channels")
                 await self.channels.create_index([("_id", 1)])
                 logger.info("Created channels collection")
-
         except Exception as e:
             logger.error(f"Database init failed: {e}")
             raise
 
     async def close(self):
-        """Close MongoDB connection"""
-        await self.client.close()
+        self.client.close()
