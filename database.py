@@ -9,7 +9,7 @@ logger = logging.getLogger(__name__)
 
 class Database:
     def __init__(self, uri: str, db_name: str = "movie_bot"):
-        # Client is created per event loop instance
+        # Create client ONLY inside the event loop (not global scope)
         self.client = AsyncIOMotorClient(uri)
         self.db = self.client[db_name]
         self.posts = self.db.posts
@@ -17,9 +17,7 @@ class Database:
         logger.info(f"Connected to MongoDB: {db_name}")
 
     async def initialize(self):
-        """Create indexes"""
         try:
-            # Only one compound text index for both fields
             await self.posts.create_index(
                 [("title", TEXT), ("description", TEXT)],
                 name="text_title_description"
@@ -32,7 +30,6 @@ class Database:
             raise
 
     async def get_channels_to_scrape(self):
-        """Get channels that need to be scraped"""
         return await self.channels.find({
             '$or': [
                 {'last_scraped': {'$exists': False}},
@@ -42,7 +39,6 @@ class Database:
         }).to_list(None)
 
     async def upsert_post(self, channel_id: int, message_id: int, data: dict):
-        """Insert or update a post"""
         data['channel_id'] = channel_id
         data['message_id'] = message_id
         await self.posts.update_one(
@@ -53,7 +49,6 @@ class Database:
 
     async def update_channel_scrape_status(self, channel_id: int, last_scraped: datetime, 
                                            status: str, new_posts: int = 0, error: str = None):
-        """Update channel scrape status"""
         update_fields = {
             'last_scraped': last_scraped,
             'scrape_status': status
@@ -71,7 +66,6 @@ class Database:
         )
 
     async def add_channel(self, channel_data: dict):
-        """Add a new channel to monitor"""
         await self.channels.update_one(
             {'channel_id': channel_data['channel_id']},
             {'$setOnInsert': channel_data},
@@ -79,11 +73,9 @@ class Database:
         )
 
     async def get_channels(self):
-        """Get all monitored channels"""
         return await self.channels.find().sort('name', 1).to_list(None)
 
     async def search_posts(self, query: str, limit: int = 5) -> List[Dict]:
-        """Search posts with text matching"""
         cursor = self.posts.find(
             {'$text': {'$search': query}},
             {'score': {'$meta': 'textScore'}}
@@ -92,6 +84,5 @@ class Database:
         return await cursor.to_list(length=limit)
 
     async def close(self):
-        """Close database connection"""
         self.client.close()
         logger.info("Database connection closed")
