@@ -2,52 +2,50 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Search - {{ title or "Movie Search" }}</title>
+    <title>Search Results - {{ query }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <style>
-      html { scroll-behavior: smooth; }
-      .movie-card:hover {
-        transform: translateY(-5px) scale(1.03);
-        box-shadow: 0 8px 30px rgba(80,80,170,0.18);
-      }
-    </style>
+    <link href="/static/style.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 </head>
-<body class="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-gray-100 min-h-screen">
-    <div class="container mx-auto px-2 sm:px-4 py-8">
-        <h1 class="text-3xl sm:text-4xl font-extrabold mb-6 text-center text-indigo-400 drop-shadow-lg tracking-wide">Movie Search</h1>
-        <form class="flex flex-col sm:flex-row justify-center mb-8 gap-3" method="get" action="/search">
-            <input
-                type="text"
-                name="q"
-                value="{{ query }}"
-                placeholder="Search movies, series, or anything..."
-                class="w-full sm:w-96 px-4 py-2 rounded-md bg-gray-800 text-gray-100 border-none focus:outline-none focus:ring-2 focus:ring-indigo-500 shadow"
-            >
-            <button
-                type="submit"
-                class="w-full sm:w-auto px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-md shadow transition"
-            >Search</button>
-        </form>
-
-        {% if posts %}
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-                {% for post in posts %}
-                <div class="movie-card bg-gradient-to-br from-gray-800 to-gray-900 rounded-2xl shadow-xl p-6 hover:ring-2 hover:ring-indigo-500 transition transform duration-300">
-                    <h2 class="text-xl font-bold mb-2 text-indigo-300 truncate">{{ post.title }}</h2>
-                    {% if post.has_episodes %}
-                        <span class="inline-block bg-green-600/90 text-xs px-3 py-1 rounded-full mb-2 font-semibold tracking-wide">Episodes Available</span>
-                    {% endif %}
-                    <div class="flex justify-between items-center mt-4">
-                        <a href="/view/{{ post.id }}{% if query %}?q={{ query }}{% endif %}"
-                            class="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md shadow font-semibold transition">View</a>
-                    </div>
+<body class="bg-dark text-light">
+    <nav class="navbar navbar-dark bg-gradient shadow-sm">
+        <div class="container">
+            <a class="navbar-brand fw-bold" href="/">🎬 Movie Search</a>
+        </div>
+    </nav>
+    <main class="container py-4">
+        <div class="row justify-content-center">
+            <div class="col-md-10 col-lg-8">
+                <form action="/search" method="get" class="d-flex gap-2 mb-4">
+                    <input type="text" name="q" class="form-control form-control-lg" value="{{ query }}" placeholder="Search movies or series..." autofocus required>
+                    <button type="submit" class="btn btn-lg btn-primary px-4">Search</button>
+                </form>
+                {% if posts %}
+                <div class="list-group shadow-lg rounded-4 animate__animated animate__fadeInUp">
+                    {% for post in posts %}
+                    <a href="/view/{{ post.id }}?q={{ query }}" class="list-group-item list-group-item-action bg-glassy border-0 mb-2">
+                        <div class="d-flex align-items-center">
+                            <div>
+                                <span class="badge bg-gradient-ep me-2">{{ loop.index }}</span>
+                                <span class="fw-bold gradient-text">{{ post.title }}</span>
+                                {% if post.has_episodes %}
+                                    <span class="badge bg-episodes ms-2">Episodes</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
                 </div>
-                {% endfor %}
+                {% else %}
+                <div class="alert alert-warning text-center mt-4 shadow-sm animate__animated animate__fadeIn">
+                    No results found for <b>{{ query }}</b>.
+                </div>
+                {% endif %}
+                <div class="text-center mt-5">
+                    <a href="/" class="btn btn-outline-light px-4">Back to Home</a>
+                </div>
             </div>
-        {% elif query %}
-            <p class="text-center text-red-400 text-lg mt-10">No results found for "<span class="font-semibold">{{ query }}</span>"</p>
-        {% endif %}
-    </div>
+        </div>
+    </main>
 </body>
 </html>
